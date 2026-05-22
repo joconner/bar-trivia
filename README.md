@@ -90,14 +90,14 @@ Documents done (the design):
 - [x] Draft MVP requirements ([docs/requirements.md](docs/requirements.md))
 - [x] Decide client tech stack: all three clients are React web (TV is plain web, player + host are PWAs) — see [docs/requirements.md, "Resolved"](docs/requirements.md#resolved)
 - [x] Competitive landscape survey ([docs/competitive-landscape.md](docs/competitive-landscape.md))
+- [x] Auth ADR — hybrid JWT + Postgres refresh tokens, dual-ID identity, argon2id ([ADR 0004](docs/0004-auth.md))
+- [x] v0 cut-list — the scope ceiling for what "playable at bar #1" actually means ([docs/v0-cut-list.md](docs/v0-cut-list.md))
 
-Next session — finish the design, then begin coding:
+Next session — begin coding:
 
-- [ ] Write `docs/0004-auth.md` ADR (JWT vs sessions, refresh token storage, guest token flow, dual-ID reconnection per competitive-landscape findings)
-- [ ] Write a v0 cut-list — a subset of [docs/requirements.md](docs/requirements.md) that's actually shippable to the first bar (likely: MC questions only, one hardcoded pack, guest play, score + reveal, no tie-break)
 - [ ] Scaffold from scratch: root `package.json` with npm workspaces, `packages/shared` (Zod schemas), `packages/server` (NestJS + Socket.IO bootstrap + `/health`)
-- [ ] Add local dev tooling: `.nvmrc`, `docker-compose.yml` for Postgres, root `dev` / `db:up` / `db:down` scripts
-- [ ] First Prisma schema and migration (minimal: User, Venue, Pack, Game, Question, plus what the v0 cut-list demands)
+- [ ] Add local dev tooling: `.nvmrc` (already in repo), `docker-compose.yml` for Postgres, root `dev` / `db:up` / `db:down` scripts
+- [ ] First Prisma schema and migration: User (with role enum), RefreshToken, Pack, Question (with `data: jsonb`), Room, RoomParticipant — exactly what the v0 cut-list demands
 - [ ] Define `docs/api.md` (REST endpoints + Socket.IO event contracts)
 - [ ] First vertical slice: host creates a room, guest joins, one MC question end-to-end
 
