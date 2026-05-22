@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+.expo/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS
+**/.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Claude Code: keep shared project settings, ignore per-user overrides, logs, and agent worktrees
+.claude/settings.local.json
+.claude/*.log
+.claude/worktrees/
