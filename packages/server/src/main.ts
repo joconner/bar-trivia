@@ -10,8 +10,9 @@ async function bootstrap() {
 
   app.use(cookieParser())
 
+  const allowedOrigins = process.env.CLIENT_ORIGINS?.split(',').filter(Boolean) ?? []
   app.enableCors({
-    origin: process.env.CLIENT_ORIGINS?.split(',') ?? [],
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
     credentials: true,
   })
 

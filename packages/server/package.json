@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "ts-node src/main.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:golden-path": "node test/golden-path.mjs"
   },
   "dependencies": {
     "@bar-trivia/shared": "*",
