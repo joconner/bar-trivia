@@ -13,7 +13,10 @@ export const MultipleChoiceDataSchema = z.object({
   type: z.literal('multiple_choice'),
   choices: z.array(ChoiceSchema).length(4),
   correctChoiceId: z.string().uuid(),
-})
+}).refine(
+  (d) => d.choices.some((c) => c.id === d.correctChoiceId),
+  { message: 'correctChoiceId must reference one of the provided choice ids', path: ['correctChoiceId'] },
+)
 export type MultipleChoiceData = z.infer<typeof MultipleChoiceDataSchema>
 
 // Discriminated union on 'type' — add new variants here for new question types.
