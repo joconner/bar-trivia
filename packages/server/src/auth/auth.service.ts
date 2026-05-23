@@ -112,8 +112,41 @@ export class AuthService {
     })
   }
 
-  private async issueTokenPair(userId: string, role: string, displayName: string) {
-    const payload: AccessTokenPayload = { sub: userId, role: role as AccessTokenPayload['role'], displayName }
+  async issueRoomTokenPair(
+    userId: string,
+    displayName: string,
+    roomCode: string,
+    roomParticipantId: string,
+  ) {
+    const { accessToken, rawRefreshToken } = await this.issueTokenPair(userId, 'guest', displayName, {
+      roomCode,
+      roomParticipantId,
+    })
+    return { accessToken, refreshToken: rawRefreshToken }
+  }
+
+  issueRoomAccessToken(
+    userId: string,
+    displayName: string,
+    roomCode: string,
+    roomParticipantId: string,
+  ): string {
+    const payload: AccessTokenPayload = { sub: userId, role: 'guest', displayName, roomCode, roomParticipantId }
+    return jwt.sign(payload, jwtSecret(), { expiresIn: ACCESS_TOKEN_TTL_SECONDS })
+  }
+
+  private async issueTokenPair(
+    userId: string,
+    role: string,
+    displayName: string,
+    extra: { roomCode?: string; roomParticipantId?: string } = {},
+  ) {
+    const payload: AccessTokenPayload = {
+      sub: userId,
+      role: role as AccessTokenPayload['role'],
+      displayName,
+      ...extra,
+    }
     const accessToken = jwt.sign(payload, jwtSecret(), { expiresIn: ACCESS_TOKEN_TTL_SECONDS })
 
     const rawRefreshToken = generateRawRefreshToken()
