@@ -84,13 +84,31 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired or revoked')
     }
 
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: stored.userId } })
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: stored.userId },
+      include: {
+        participants: {
+          where: { isActive: true },
+          orderBy: { lastSeenAt: 'desc' },
+          take: 1,
+        },
+      },
+    })
+
+    // For guest users, re-embed their latest active room participant so the
+    // client can reconnect to an in-progress game after a page reload.
+    const latestParticipant = user.participants[0]
+    const roomExtra =
+      user.role === 'guest' && latestParticipant
+        ? { roomCode: latestParticipant.roomCode, roomParticipantId: latestParticipant.id }
+        : {}
 
     // Issue new pair and link old row → new row via rotatedToId
     const { accessToken, rawRefreshToken, newTokenId } = await this.issueTokenPair(
       user.id,
       user.role,
       user.displayName,
+      roomExtra,
     )
 
     await this.prisma.refreshToken.update({

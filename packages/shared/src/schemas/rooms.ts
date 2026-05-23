@@ -19,6 +19,7 @@ export const PlayerSummarySchema = z.object({
 export type PlayerSummary = z.infer<typeof PlayerSummarySchema>
 
 export const CurrentQuestionSchema = z.object({
+  questionId: z.string().uuid(),
   prompt: z.string(),
   imageUrl: z.string().nullable(),
   choices: z.array(z.object({ id: z.string(), text: z.string() })),

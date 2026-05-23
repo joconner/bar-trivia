@@ -451,6 +451,7 @@ export class RoomsService {
 
     if (q && state.phase === 'question') {
       currentQuestion = {
+        questionId: q.id,
         prompt: q.prompt,
         imageUrl: q.imageUrl,
         choices: q.data.choices,
@@ -460,6 +461,7 @@ export class RoomsService {
       }
     } else if (q && state.phase === 'reveal') {
       currentQuestion = {
+        questionId: q.id,
         prompt: q.prompt,
         imageUrl: q.imageUrl,
         choices: q.data.choices,
