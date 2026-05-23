@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@bar-trivia/shared": "*",
+    "qrcode.react": "^4.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "socket.io-client": "^4.0.0"
