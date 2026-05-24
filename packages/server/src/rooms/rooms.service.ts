@@ -141,7 +141,37 @@ export class RoomsService {
       return { accessToken, participant: { id: parsed.roomParticipantId, displayName: existing.displayName } }
     }
 
-    // New participant
+    // Registered user joining: look up their real identity, no new User row
+    if (parsed !== null && parsed.role !== 'guest') {
+      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: parsed.sub } })
+      const displayName = user.displayName
+
+      const participant = await this.prisma.roomParticipant.create({
+        data: { userId: user.id, roomId: state.roomId, roomCode, displayName },
+      })
+
+      const { accessToken, refreshToken } = await this.auth.issueRoomTokenPair(
+        user.id,
+        displayName,
+        roomCode,
+        participant.id,
+      )
+
+      const participantState: ParticipantState = {
+        userId: user.id,
+        displayName,
+        score: 0,
+        totalResponseTimeMs: 0,
+        socketId: null,
+        isConnected: true,
+      }
+      state.participants.set(participant.id, participantState)
+
+      this.broadcast(roomCode)
+      return { accessToken, refreshToken, participant: { id: participant.id, displayName } }
+    }
+
+    // New guest participant
     const existingNames = new Set([...state.participants.values()].map((p) => p.displayName))
     const displayName = this.users.generateDisplayName(existingNames)
 
