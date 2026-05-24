@@ -19,17 +19,19 @@ COPY packages/player/ ./packages/player/
 COPY packages/host/ ./packages/host/
 
 # TV build — VITE_SERVER_URL="" → same-origin socket.io via nginx proxy on 8081
-# VITE_PLAYER_PORT=5174 → QR code points to the host-exposed player port
+# VITE_PLAYER_URL → QR code target; baked at build time. For multi-device demos
+# (phone scanning TV's QR), rebuild with VITE_PLAYER_URL=http://<LAN-IP>:5174
 FROM base AS tv-build
-RUN cd packages/tv && VITE_SERVER_URL="" VITE_PLAYER_PORT=5174 npx vite build
+RUN cd packages/tv && VITE_SERVER_URL="" VITE_PLAYER_URL=http://localhost:5174 npx vite build
 
 # Player build — already uses io("/") for same-origin; no env overrides needed
 FROM base AS player-build
 RUN cd packages/player && npx vite build
 
-# Host build — VITE_SERVER_URL="" → same-origin API/socket.io via nginx proxy on 80
+# Host build — VITE_API_URL="" → same-origin API/socket.io via nginx proxy on 80.
+# Host code reads VITE_API_URL (api.ts, socket.ts); VITE_SERVER_URL is unread.
 FROM base AS host-build
-RUN cd packages/host && VITE_SERVER_URL="" npx vite build
+RUN cd packages/host && VITE_API_URL="" npx vite build
 
 FROM nginx:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
