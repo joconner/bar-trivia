@@ -2,6 +2,9 @@
   "name": "@bar-trivia/server",
   "version": "0.0.1",
   "private": true,
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "dev": "ts-node src/main.ts",
     "build": "tsc",

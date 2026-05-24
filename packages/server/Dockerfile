@@ -26,4 +26,4 @@ RUN cd packages/server && npx prisma generate
 EXPOSE 3000
 
 # prisma db push syncs the schema to the postgres instance at startup.
-ENTRYPOINT ["sh", "-c", "cd /app/packages/server && npx prisma db push && npx ts-node src/main.ts"]
+ENTRYPOINT ["sh", "-c", "cd /app/packages/server && npx prisma db push && npx prisma db seed && npx ts-node src/main.ts"]
