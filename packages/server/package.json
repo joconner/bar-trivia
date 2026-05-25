@@ -6,6 +6,7 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "ts-node src/main.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
