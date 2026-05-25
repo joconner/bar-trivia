@@ -4,7 +4,7 @@ Project-specific instructions. Loaded on top of `~/CLAUDE.md`; only repo-specifi
 
 ## Project status
 
-Documented design only. No code, no packages, no tooling — those were removed in a deliberate reset so the next coding session can begin from the design with no inherited assumptions. ADRs 0001 and 0002 lock the server stack and database. Product/behavioral requirements for MVP are in [docs/requirements.md](docs/requirements.md). Client tech stack is decided (see "Locked decisions" below). Next session: write the auth ADR, then scaffold `packages/shared` + `packages/server` from scratch against the documented design.
+v0 vertical slice implemented and runnable end-to-end. The stack is scaffolded and wired: `packages/shared` (Zod schemas), `packages/server` (NestJS + Socket.IO + Postgres/Prisma), and all three React clients (`packages/tv`, `packages/player`, `packages/host`). A host can create a room, guests can join, and a full multi-question game runs with scoring, reveal, and a final podium (covered by `packages/server/test/golden-path.mjs`). ADRs 0001 (server stack), 0002 (database), and 0004 (auth) are locked; product/behavioral requirements for MVP are in [docs/requirements.md](docs/requirements.md). To run the stack locally, see [Running locally](README.md#running-locally). Not yet built: registered-player lifelines and persistent stats, Google OAuth, and a formal `docs/api.md` contract.
 
 ## Product in one paragraph
 
