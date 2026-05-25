@@ -9,10 +9,13 @@ RUN apk add --no-cache python3 make g++ openssl
 
 WORKDIR /app
 
-# Copy manifests first so npm ci is cached independently of source changes
+# Copy manifests first so npm ci is cached independently of source changes.
+# The Prisma schema must be present before npm ci because the server's
+# postinstall hook runs `prisma generate`.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
+COPY packages/server/prisma ./packages/server/prisma
 
 RUN npm ci
 
