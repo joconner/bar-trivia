@@ -12,14 +12,20 @@ export const AccessTokenPayloadSchema = z.object({
 })
 export type AccessTokenPayload = z.infer<typeof AccessTokenPayloadSchema>
 
+const emailField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.string().email())
+
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(8).max(128),
 })
 export type LoginRequest = z.infer<typeof LoginRequestSchema>
 
 export const RegisterHostRequestSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(8).max(128),
   displayName: z.string().min(1).max(50),
 })
