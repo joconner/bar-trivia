@@ -2,7 +2,89 @@
 
 Live trivia game built for bars. A host runs the game from a phone, players answer on their phones, and a TV displays the shared game state (current question, scoreboard, timer). The platform aims to make joining frictionless for casual players while rewarding registered players with persistent stats and in-game lifelines.
 
-> **Status:** design only. ADRs and requirements are written; no code yet. The repo holds documents that describe what to build. Coding begins next session — start with the auth ADR, then the first Prisma schema, then a v0 vertical slice. See [CLAUDE.md](CLAUDE.md) for the load-bearing decisions and [docs/requirements.md](docs/requirements.md) for the product/behavioral spec.
+> **Status:** v0 vertical slice implemented and runnable end-to-end — a NestJS + Socket.IO server, Postgres/Prisma persistence, and three React clients (TV, player, host). See [Running locally](#running-locally) to bring up the full stack on your machine. [CLAUDE.md](CLAUDE.md) holds the load-bearing decisions and [docs/requirements.md](docs/requirements.md) is the product/behavioral spec.
+
+## Running locally
+
+Brings up the API, Postgres, and all three clients on one machine.
+
+**Prerequisites:** Node 22 (see [`.nvmrc`](.nvmrc)), npm 10+, and **either** Docker (simplest way to get Postgres) **or** a local Postgres 16.
+
+### 1. Install dependencies
+
+```bash
+nvm use        # selects Node 22
+npm install    # installs all workspaces; the server's postinstall also runs `prisma generate`
+```
+
+### 2. Start Postgres
+
+**Option A — Docker (recommended).** Starts only the `postgres` service from [`docker-compose.yml`](docker-compose.yml) on `localhost:5432` (database, user, and password are all `bartrivia`):
+
+```bash
+docker compose up -d postgres
+```
+
+**Option B — local Postgres.** Create the database and a matching role:
+
+```bash
+createdb bartrivia
+psql -d bartrivia -c "CREATE ROLE bartrivia WITH LOGIN PASSWORD 'bartrivia'; ALTER DATABASE bartrivia OWNER TO bartrivia;"
+```
+
+(Any database/credentials work — just make `DATABASE_URL` in the next step match.)
+
+### 3. Configure the server environment
+
+The server reads `packages/server/.env`. Copy the example and edit it:
+
+```bash
+cp .env.example packages/server/.env
+```
+
+Set `DATABASE_URL` to match your Postgres. For either option above:
+
+```
+DATABASE_URL=postgresql://bartrivia:bartrivia@localhost:5432/bartrivia
+```
+
+Also set `JWT_SECRET` to any 32+ character string. Keep `NODE_ENV=development` (so auth cookies are sent over plain `http://localhost`) and leave `CLIENT_ORIGINS` as-is — it already lists the three client ports.
+
+### 4. Create the schema and seed demo data
+
+```bash
+cd packages/server
+npx prisma migrate deploy   # creates the tables
+npx prisma db seed          # optional: demo pack with 2 games / 40 questions
+cd ../..
+```
+
+> Use `prisma db seed` (not `ts-node prisma/seed.ts` directly) — the seed script relies on Prisma's CLI to load `.env`.
+
+### 5. Run the server and clients
+
+Each runs in the foreground, so use four terminals (or background them):
+
+```bash
+npm run dev:server   # API + WebSocket → http://localhost:3000
+npm run dev:tv       # TV display      → http://localhost:5173
+npm run dev:player   # Player PWA      → http://localhost:5174
+npm run dev:host     # Host PWA        → http://localhost:5175
+```
+
+The clients default to `http://localhost:3000` for the API, so no client-side config is needed for local dev.
+
+### 6. Play a game
+
+1. **Host** — open <http://localhost:5175>, click **Register** to create a host account, build a pack + game with a few questions, then create a room. You'll get a 4-character room code.
+2. **TV** — open `http://localhost:5173/?roomCode=CODE` (replace `CODE`). Use the `?roomCode=` form: room codes can contain digits, which the bare `/CODE` path does not yet recognize.
+3. **Players** — open <http://localhost:5174> in other tabs/devices and join with the room code. No account required.
+4. Drive the game from the host; the TV and players update live over WebSockets.
+
+**Notes:**
+- The seeded "Trivia Host" account has no password (it only exists to own the demo pack), so register your own host account to sign in.
+- To join from real phones instead of browser tabs, replace `localhost` with your machine's LAN IP and add that origin to `CLIENT_ORIGINS`.
+- An end-to-end smoke test of the whole journey lives at `packages/server/test/golden-path.mjs`: with the server running, `cd packages/server && node test/golden-path.mjs`.
 
 ## Architecture
 
@@ -65,9 +147,9 @@ Socket.IO pushes game state transitions from the server to every client in a roo
 
 Clients render off the broadcast; they do not compute authoritative state locally.
 
-## Repo layout (planned)
+## Repo layout
 
-Monorepo with npm workspaces. Aspirational layout; only the root and `docs/` exist today.
+Monorepo with npm workspaces.
 
 ```
 bar-trivia/
@@ -93,16 +175,16 @@ Documents done (the design):
 - [x] Auth ADR — hybrid JWT + Postgres refresh tokens, dual-ID identity, argon2id ([ADR 0004](docs/0004-auth.md))
 - [x] v0 cut-list — the scope ceiling for what "playable at bar #1" actually means ([docs/v0-cut-list.md](docs/v0-cut-list.md))
 
-Next session — begin coding:
+v0 vertical slice — built:
 
-- [ ] Scaffold from scratch: root `package.json` with npm workspaces, `packages/shared` (Zod schemas), `packages/server` (NestJS + Socket.IO bootstrap + `/health`)
-- [ ] Add local dev tooling: `.nvmrc` (already in repo), `docker-compose.yml` for Postgres, root `dev` / `db:up` / `db:down` scripts
-- [ ] First Prisma schema and migration: User (with role enum), RefreshToken, Pack, Question (with `data: jsonb`), Room, RoomParticipant — exactly what the v0 cut-list demands
-- [ ] Define `docs/api.md` (REST endpoints + Socket.IO event contracts)
-- [ ] First vertical slice: host creates a room, guest joins, one MC question end-to-end
+- [x] Workspaces scaffolded: `packages/shared` (Zod schemas), `packages/server` (NestJS + Socket.IO + `/health`)
+- [x] Local dev tooling: `.nvmrc`, `docker-compose.yml` for Postgres — see [Running locally](#running-locally)
+- [x] Prisma schema and migration: User (role enum), RefreshToken, Pack, Question (`data: jsonb`), Room, RoomParticipant, GameResult
+- [x] All three clients scaffolded and wired to the server: `packages/tv`, `packages/player`, `packages/host`
+- [x] End-to-end vertical slice: host creates a room, guests join, full multi-question game with scoring, reveal, and final podium (`packages/server/test/golden-path.mjs`)
 
 Not yet started (later):
 
-- [ ] Scaffold `packages/tv` (React web, kiosk)
-- [ ] Scaffold `packages/player` (React web, PWA)
-- [ ] Scaffold `packages/host` (React web, PWA)
+- [ ] `docs/api.md` — formal REST + Socket.IO event contracts
+- [ ] Registered-player lifelines (phone-a-friend, ask-a-neighbor, 50/50) and persistent stats
+- [ ] Google OAuth for player/host accounts
