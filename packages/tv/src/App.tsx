@@ -11,6 +11,8 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? ''
 const POLL_INTERVAL_MS = 3000
 
 // Extract roomCode from URL path (/MURP or /tv/MURP) or ?roomCode= query param.
+// The 'tv' prefix segment is explicitly skipped so a bare /tv URL falls through
+// to auto-discovery instead of treating "TV" as a room code.
 function getRoomCodeFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search)
   const fromQuery = params.get('roomCode')
@@ -18,6 +20,7 @@ function getRoomCodeFromUrl(): string | null {
 
   const segments = window.location.pathname.split('/').filter(Boolean)
   for (let i = segments.length - 1; i >= 0; i--) {
+    if (segments[i].toLowerCase() === 'tv') continue
     const seg = segments[i].toUpperCase()
     if (/^[A-Z]{2,8}$/.test(seg)) return seg
   }

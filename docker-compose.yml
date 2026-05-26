@@ -24,8 +24,6 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://bartrivia:bartrivia@postgres:5432/bartrivia
-      CLIENT_ORIGINS: "http://localhost:5173,http://localhost:5174,http://localhost:5175"
-      PLAYER_ORIGIN: "http://localhost:5174"
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,9 +34,8 @@ services:
       context: .
       dockerfile: docker/nginx.Dockerfile
     ports:
-      - "5173:8081"  # TV display
-      - "5174:8082"  # Player client
-      - "5175:80"    # Host control panel
+      # Single port. Clients live at /tv, /host, /player; bare IP redirects to /tv.
+      - "80:80"
     depends_on:
       - server
 

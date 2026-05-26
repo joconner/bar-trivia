@@ -1,18 +1,23 @@
 import { QRCodeSVG } from 'qrcode.react'
 import type { RoomStateDto } from '@bar-trivia/shared'
 
-// Player runs on port 5174 (nginx). Derive the host from window.location so
-// that whatever address the TV's browser used to reach this page also works
-// for the QR — no rebuild needed when the LAN IP changes.
-const PLAYER_PORT = 5174
+// Player lives at /player on the same origin nginx serves the TV from, so the
+// QR uses window.location's origin verbatim. No port, no env var — whatever
+// hostname the bar TV typed works for phones on the same Wi-Fi.
+//
+// Localhost is the one case where this breaks silently: phones can't reach the
+// TV's loopback. Detect it and show a warning instead of a useless QR, so the
+// venue operator catches the problem before customers do.
+const NON_ROUTABLE_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', ''])
 
 interface LobbyViewProps {
   state: RoomStateDto
 }
 
 export function LobbyView({ state }: LobbyViewProps) {
-  const playerOrigin = `${window.location.protocol}//${window.location.hostname}:${PLAYER_PORT}`
-  const joinUrl = `${playerOrigin}/join/${state.roomCode}`
+  const hostname = window.location.hostname
+  const isRoutable = !NON_ROUTABLE_HOSTNAMES.has(hostname)
+  const joinUrl = `${window.location.origin}/player/join/${state.roomCode}`
 
   return (
     <div className="lobby-view">
@@ -23,10 +28,24 @@ export function LobbyView({ state }: LobbyViewProps) {
         <div className="join-section">
           <p className="join-label">Join the game!</p>
           <div className="room-code">{state.roomCode}</div>
-          <div className="qr-wrapper">
-            <QRCodeSVG value={joinUrl} size={200} bgColor="#ffffff" fgColor="#0f172a" level="M" />
-          </div>
-          <p className="join-url">{joinUrl}</p>
+          {isRoutable ? (
+            <>
+              <div className="qr-wrapper">
+                <QRCodeSVG value={joinUrl} size={200} bgColor="#ffffff" fgColor="#0f172a" level="M" />
+              </div>
+              <p className="join-url">{joinUrl}</p>
+            </>
+          ) : (
+            <div className="qr-warning" style={{ maxWidth: 360, color: '#fbbf24', textAlign: 'center' }}>
+              <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                TV is at <code>{hostname}</code> — phones can't reach it.
+              </p>
+              <p style={{ fontSize: '0.9rem' }}>
+                Reopen this TV at <code>http://&lt;your-LAN-IP&gt;/tv/</code><br />
+                (run <code>ipconfig getifaddr en0</code> on the host machine).
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="players-section">
