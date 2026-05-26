@@ -113,17 +113,40 @@ describe('AuthService.refresh', () => {
     await expect(service.refresh('raw')).rejects.toThrow(/expired or revoked/)
   })
 
-  it('rotates a valid token, linking the old row to the new one', async () => {
+  it('treats a token rotated within the grace window as a concurrent refresh, not theft', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue({ id: 'rt1', rotatedToId: 'rt2', revokedAt: null, expiresAt: FUTURE(), userId: 'u1', lastUsedAt: new Date() })
+
+    await expect(service.refresh('raw')).rejects.toThrow(/already in progress/)
+    // A benign race must NOT revoke the chain (revokeChain rotates via update).
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled()
+  })
+
+  it('rotates a valid token atomically, linking the old row to the new one', async () => {
     prisma.refreshToken.findUnique.mockResolvedValue({ id: 'rt1', rotatedToId: null, revokedAt: null, expiresAt: FUTURE(), userId: 'u1' })
     prisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'u1', role: 'host', displayName: 'H', participants: [] })
     prisma.refreshToken.create.mockResolvedValue({ id: 'rt-new' })
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 })
 
     const result = await service.refresh('raw')
 
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'rt1' }, data: expect.objectContaining({ rotatedToId: 'rt-new' }) }),
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'rt1', rotatedToId: null },
+        data: expect.objectContaining({ rotatedToId: 'rt-new' }),
+      }),
     )
     expect(service.verifyAccessToken(result.accessToken).sub).toBe('u1')
+  })
+
+  it('discards its freshly-minted token and bows out when it loses the rotation race', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue({ id: 'rt1', rotatedToId: null, revokedAt: null, expiresAt: FUTURE(), userId: 'u1' })
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'u1', role: 'host', displayName: 'H', participants: [] })
+    prisma.refreshToken.create.mockResolvedValue({ id: 'rt-new' })
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 })
+    prisma.refreshToken.delete.mockResolvedValue({})
+
+    await expect(service.refresh('raw')).rejects.toThrow(/already in progress/)
+    expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt-new' } })
   })
 
   it('re-embeds a guest latest active room participant into the new access token', async () => {
@@ -135,6 +158,7 @@ describe('AuthService.refresh', () => {
       participants: [{ id: 'p1', roomCode: 'WXYZ' }],
     })
     prisma.refreshToken.create.mockResolvedValue({ id: 'rt-new' })
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 })
 
     const result = await service.refresh('raw')
     const payload = service.verifyAccessToken(result.accessToken)

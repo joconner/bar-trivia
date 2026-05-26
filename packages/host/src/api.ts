@@ -1,18 +1,55 @@
 import type { Pack, RoomStateDto } from '@bar-trivia/shared'
+import { decodeToken } from './jwt'
 
 const BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:3000'
+const PROACTIVE_LEAD_MS = 90_000
 
 let _token: string | null = null
+let _refreshInFlight: Promise<string | null> | null = null
+let _proactiveTimer: ReturnType<typeof setTimeout> | null = null
 
 export function setToken(token: string | null) {
   _token = token
+  if (_proactiveTimer) {
+    clearTimeout(_proactiveTimer)
+    _proactiveTimer = null
+  }
+  if (!token) return
+  const claims = decodeToken(token)
+  const exp = typeof claims?.['exp'] === 'number' ? (claims['exp'] as number) * 1000 : 0
+  if (!exp) return
+  const delay = Math.max(0, exp - Date.now() - PROACTIVE_LEAD_MS)
+  _proactiveTimer = setTimeout(() => {
+    void refreshAccessToken()
+  }, delay)
 }
 
 export function getToken(): string | null {
   return _token
 }
 
-async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
+// Single-flight refresh shared by the REST 401 retry, the socket connect_error
+// handler, the proactive timer, and the mount check — so concurrent triggers
+// can't rotate the refresh cookie twice and trip server reuse detection.
+export function refreshAccessToken(): Promise<string | null> {
+  if (_refreshInFlight) return _refreshInFlight
+  _refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+      if (!res.ok) return null
+      const data = (await res.json()) as { accessToken: string }
+      setToken(data.accessToken)
+      return data.accessToken
+    } catch {
+      return null
+    } finally {
+      _refreshInFlight = null
+    }
+  })()
+  return _refreshInFlight
+}
+
+async function req<T>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (_token) headers['Authorization'] = `Bearer ${_token}`
 
@@ -22,6 +59,13 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+
+  // On a 401, refresh once and retry. Auth endpoints are exempt so a
+  // bad-credentials 401 never loops through refresh.
+  if (res.status === 401 && !retried && !path.startsWith('/auth/')) {
+    const fresh = await refreshAccessToken()
+    if (fresh) return req<T>(method, path, body, true)
+  }
 
   if (res.status === 204) return undefined as T
 
@@ -47,10 +91,6 @@ export function register(email: string, password: string, displayName: string) {
 
 export function logout() {
   return req<void>('POST', '/auth/logout')
-}
-
-export function refreshToken() {
-  return req<{ accessToken: string }>('POST', '/auth/refresh')
 }
 
 // --- Packs ---
