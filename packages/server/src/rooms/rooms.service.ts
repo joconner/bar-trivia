@@ -86,6 +86,13 @@ export class RoomsService {
     return this.toRoomStateDto(state)
   }
 
+  // Returns count of live in-memory rooms, plus the code if exactly one exists.
+  // Used by the TV client to auto-discover the room to observe.
+  getActiveRooms(): { count: number; roomCode: string | null } {
+    const codes = this.store.codes()
+    return { count: codes.length, roomCode: codes.length === 1 ? codes[0] : null }
+  }
+
   updateLobbyConfig(
     roomCode: string,
     hostId: string,

@@ -4,15 +4,18 @@ import { NestFactory } from '@nestjs/core'
 import { ZodValidationPipe } from 'nestjs-zod'
 import cookieParser from 'cookie-parser'
 import { AppModule } from './app.module'
+import { isAllowedOrigin } from './cors-allowlist'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
   app.use(cookieParser())
 
-  const allowedOrigins = process.env.CLIENT_ORIGINS?.split(',').filter(Boolean) ?? []
   app.enableCors({
-    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+      if (isAllowedOrigin(origin)) cb(null, true)
+      else cb(new Error(`Origin ${origin} not allowed by CORS`), false)
+    },
     credentials: true,
   })
 

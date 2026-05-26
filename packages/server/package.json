@@ -10,7 +10,8 @@
     "dev": "ts-node src/main.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test:golden-path": "node test/golden-path.mjs"
+    "test:golden-path": "node test/golden-path.mjs",
+    "seed:pack": "ts-node scripts/seed-pack.ts"
   },
   "dependencies": {
     "@bar-trivia/shared": "*",

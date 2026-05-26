@@ -20,4 +20,8 @@ export class RoomStateStore {
   has(roomCode: string): boolean {
     return this.rooms.has(roomCode)
   }
+
+  codes(): string[] {
+    return Array.from(this.rooms.keys())
+  }
 }

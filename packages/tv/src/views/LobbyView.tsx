@@ -1,14 +1,18 @@
 import { QRCodeSVG } from 'qrcode.react'
 import type { RoomStateDto } from '@bar-trivia/shared'
 
-const PLAYER_URL = import.meta.env.VITE_PLAYER_URL ?? 'http://localhost:5174'
+// Player runs on port 5174 (nginx). Derive the host from window.location so
+// that whatever address the TV's browser used to reach this page also works
+// for the QR — no rebuild needed when the LAN IP changes.
+const PLAYER_PORT = 5174
 
 interface LobbyViewProps {
   state: RoomStateDto
 }
 
 export function LobbyView({ state }: LobbyViewProps) {
-  const joinUrl = `${PLAYER_URL}/join/${state.roomCode}`
+  const playerOrigin = `${window.location.protocol}//${window.location.hostname}:${PLAYER_PORT}`
+  const joinUrl = `${playerOrigin}/join/${state.roomCode}`
 
   return (
     <div className="lobby-view">

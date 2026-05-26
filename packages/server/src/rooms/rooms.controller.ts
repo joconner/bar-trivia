@@ -57,6 +57,14 @@ export class RoomsController {
     return this.rooms.createRoom(user.sub, body)
   }
 
+  // Declared before :roomCode so /rooms/active doesn't get routed as
+  // getRoom(roomCode='active'). TV polls this to auto-discover a room.
+  @Get('active')
+  @Public()
+  getActive() {
+    return this.rooms.getActiveRooms()
+  }
+
   @Get(':roomCode')
   @Public()
   getRoom(@Param('roomCode') roomCode: string) {

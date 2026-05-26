@@ -9,6 +9,7 @@ import {
 import { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents, SocketData, RoomStateDto } from '@bar-trivia/shared'
 import { AuthService } from '../auth/auth.service'
+import { isAllowedOrigin } from '../cors-allowlist'
 import { RoomStateStore } from './room-state.store'
 import { RoomsService } from './rooms.service'
 
@@ -18,12 +19,8 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents, Record<strin
 @WebSocketGateway({
   cors: {
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-      const allowed = (process.env.CLIENT_ORIGINS ?? '').split(',').filter(Boolean)
-      if (!allowed.length || allowed.includes(origin ?? '')) {
-        cb(null, true)
-      } else {
-        cb(new Error('Not allowed by CORS'))
-      }
+      if (isAllowedOrigin(origin)) cb(null, true)
+      else cb(new Error(`Origin ${origin} not allowed by CORS`))
     },
     credentials: true,
   },
