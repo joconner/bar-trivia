@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { RoomStateDto } from '@bar-trivia/shared'
-import { setToken, getToken, refreshToken } from './api'
+import { setToken, getToken, refreshAccessToken } from './api'
+import { isTokenExpired } from './jwt'
 import { connectRoom, disconnectRoom } from './socket'
 import Login from './views/Login'
 import PackLibrary from './views/PackLibrary'
@@ -27,14 +28,17 @@ export default function App() {
 
   // Try to refresh token on mount
   useEffect(() => {
-    refreshToken()
-      .then(({ accessToken }) => {
-        setToken(accessToken)
-        setScreen({ id: 'packs' })
-      })
-      .catch(() => {
-        // No valid session; stay on login
-      })
+    refreshAccessToken().then((token) => {
+      if (token) setScreen({ id: 'packs' })
+      // else: no valid session; stay on login
+    })
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    setToken(null)
+    disconnectRoom()
+    setRoomState(null)
+    setScreen({ id: 'login' })
   }, [])
 
   const navigate = useCallback((next: Screen) => {
@@ -49,7 +53,7 @@ export default function App() {
     if (willBeInRoom && 'roomCode' in next) {
       const token = getToken()
       if (token) {
-        const sock = connectRoom(token, next.roomCode)
+        const sock = connectRoom(next.roomCode)
         sock.on('room:state', (state) => {
           setRoomState(state)
           // Auto-advance screen based on phase
@@ -64,23 +68,24 @@ export default function App() {
             return prev
           })
         })
+        // A handshake rejection lands here. Refresh only for a token problem;
+        // if the refresh token is dead, log out instead of looping forever.
+        sock.on('connect_error', async () => {
+          const current = getToken()
+          if (current && !isTokenExpired(current)) return
+          const fresh = await refreshAccessToken()
+          if (!fresh) handleLogout()
+        })
       }
     }
 
     setScreen(next)
-  }, [screen.id])
+  }, [screen.id, handleLogout])
 
   const handleLogin = useCallback((token: string) => {
     setToken(token)
     navigate({ id: 'packs' })
   }, [navigate])
-
-  const handleLogout = useCallback(() => {
-    setToken(null)
-    disconnectRoom()
-    setRoomState(null)
-    setScreen({ id: 'login' })
-  }, [])
 
   switch (screen.id) {
     case 'login':

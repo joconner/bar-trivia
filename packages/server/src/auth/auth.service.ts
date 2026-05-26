@@ -12,6 +12,10 @@ import { RegisterHostRequest, LoginRequest, AccessTokenPayload } from '@bar-triv
 
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60        // 15 minutes
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 3600 // 7 days
+// A token rotated within this window is treated as a benign concurrent refresh
+// (e.g. the socket and a REST call both refreshing on the same expiry) rather
+// than as token theft, so a harmless race never revokes a live session.
+const REFRESH_REUSE_GRACE_MS = 30 * 1000
 
 function jwtSecret(): string {
   const s = process.env.JWT_SECRET
@@ -74,10 +78,18 @@ export class AuthService {
 
     if (!stored) throw new UnauthorizedException('Invalid refresh token')
 
-    // Token reuse detection: if already rotated, revoke the whole chain and reject
+    // Already rotated. Distinguish genuine reuse of an old token (possible theft —
+    // revoke the whole chain) from a benign race where another in-flight refresh
+    // for the same user rotated it moments ago (reject, but leave the new session
+    // intact). Without the grace window, a harmless double-refresh could revoke a
+    // session that was just legitimately issued.
     if (stored.rotatedToId) {
-      await this.revokeChain(stored.id)
-      throw new UnauthorizedException('Refresh token already used')
+      const rotatedAt = stored.lastUsedAt?.getTime() ?? 0
+      if (Date.now() - rotatedAt > REFRESH_REUSE_GRACE_MS) {
+        await this.revokeChain(stored.id)
+        throw new UnauthorizedException('Refresh token already used')
+      }
+      throw new UnauthorizedException('Refresh already in progress')
     }
 
     if (stored.revokedAt || stored.expiresAt < new Date()) {
@@ -111,10 +123,18 @@ export class AuthService {
       roomExtra,
     )
 
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
+    // Atomically claim the rotation: the conditional `rotatedToId: null` guard
+    // means only the first of any concurrent refreshes wins. The loser discards
+    // the token it just minted and bows out without touching the live session.
+    const claim = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, rotatedToId: null },
       data: { rotatedToId: newTokenId, lastUsedAt: new Date() },
     })
+
+    if (claim.count === 0) {
+      await this.prisma.refreshToken.delete({ where: { id: newTokenId } }).catch(() => undefined)
+      throw new UnauthorizedException('Refresh already in progress')
+    }
 
     return { accessToken, refreshToken: rawRefreshToken }
   }
