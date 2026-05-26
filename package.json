@@ -1,13 +1,22 @@
 {
   "name": "bar-trivia",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev:server": "npm run dev --workspace=packages/server",
-    "dev:tv":     "npm run dev --workspace=packages/tv",
+    "dev:tv": "npm run dev --workspace=packages/tv",
     "dev:player": "npm run dev --workspace=packages/player",
-    "dev:host":   "npm run dev --workspace=packages/host",
-    "build":      "npm run build --workspaces --if-present",
-    "typecheck":  "npm run typecheck --workspaces --if-present"
+    "dev:host": "npm run dev --workspace=packages/host",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.7",
+    "vitest": "^4.1.7"
   }
 }
