@@ -86,6 +86,18 @@ The clients default to `http://localhost:3000` for the API, so no client-side co
 - To join from real phones instead of browser tabs, replace `localhost` with your machine's LAN IP and add that origin to `CLIENT_ORIGINS`.
 - An end-to-end smoke test of the whole journey lives at `packages/server/test/golden-path.mjs`: with the server running, `cd packages/server && node test/golden-path.mjs`.
 
+## Testing
+
+Unit tests run on [Vitest](https://vitest.dev) from the repo root — no database or running server required:
+
+```bash
+npm test            # run the suite once
+npm run test:watch  # watch mode
+npm run test:coverage
+```
+
+They cover the logic-heavy core: the shared Zod schemas (`packages/shared/test/`) and the server's services, guards, and room-state machine (`packages/server/test/unit/`). Prisma, argon2, and the clock are mocked, so the suite is fast and deterministic. The full request/socket flow is covered separately by the end-to-end scripts in `packages/server/test/*.mjs` (see the note above), which need a running server.
+
 ## Architecture
 
 ```mermaid
