@@ -10,6 +10,8 @@ export default defineConfig({
     include: [
       'packages/shared/test/**/*.test.ts',
       'packages/server/test/unit/**/*.test.ts',
+      'packages/host/test/**/*.test.ts',
+      'packages/player/test/**/*.test.ts',
     ],
     coverage: {
       provider: 'v8',
