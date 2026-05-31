@@ -5,10 +5,15 @@ import type { RoomStateDto } from '@bar-trivia/shared'
 // QR uses window.location's origin verbatim. No port, no env var — whatever
 // hostname the bar TV typed works for phones on the same Wi-Fi.
 //
-// Localhost is the one case where this breaks silently: phones can't reach the
-// TV's loopback. Detect it and show a warning instead of a useless QR, so the
-// venue operator catches the problem before customers do.
-const NON_ROUTABLE_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', ''])
+// Loopback and dev-only *.localhost hostnames are the cases where this breaks
+// silently: phones can't reach the TV's loopback, and *.localhost only resolves
+// on machines with the matching /etc/hosts entry. Detect both and show a
+// warning instead of a useless QR, so the operator catches the problem before
+// customers do.
+const NON_ROUTABLE_LITERALS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', ''])
+function isNonRoutable(hostname: string): boolean {
+  return NON_ROUTABLE_LITERALS.has(hostname) || hostname.endsWith('.localhost')
+}
 
 interface LobbyViewProps {
   state: RoomStateDto
@@ -16,7 +21,7 @@ interface LobbyViewProps {
 
 export function LobbyView({ state }: LobbyViewProps) {
   const hostname = window.location.hostname
-  const isRoutable = !NON_ROUTABLE_HOSTNAMES.has(hostname)
+  const isRoutable = !isNonRoutable(hostname)
   const joinUrl = `${window.location.origin}/player/join/${state.roomCode}`
 
   return (

@@ -4,17 +4,16 @@ import { getToken } from './api'
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
-const BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:3000'
-
 let socket: AppSocket | null = null
 
-// `auth` is a function so each (re)connection attempt reads the current token —
-// a token refreshed mid-game is picked up on the next reconnect automatically.
+// Same-origin connect — nginx proxies /socket.io to the server. `auth` is a
+// function so each (re)connection attempt reads the current token: a token
+// refreshed mid-game is picked up on the next reconnect automatically.
 export function connectRoom(roomCode: string): AppSocket {
   if (socket) {
     socket.disconnect()
   }
-  socket = io(BASE, {
+  socket = io('', {
     auth: (cb: (data: { token: string }) => void) => cb({ token: getToken() ?? '' }),
     query: { roomCode },
     transports: ['websocket', 'polling'],

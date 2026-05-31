@@ -13,6 +13,9 @@ const POLL_INTERVAL_MS = 3000
 // Extract roomCode from URL path (/MURP or /tv/MURP) or ?roomCode= query param.
 // The 'tv' prefix segment is explicitly skipped so a bare /tv URL falls through
 // to auto-discovery instead of treating "TV" as a room code.
+//
+// Server-generated room codes use [2-9A-Z] minus the confusables O/I/L (see
+// rooms.service.ts generateRoomCode), so the regex must accept digits.
 function getRoomCodeFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search)
   const fromQuery = params.get('roomCode')
@@ -22,7 +25,7 @@ function getRoomCodeFromUrl(): string | null {
   for (let i = segments.length - 1; i >= 0; i--) {
     if (segments[i].toLowerCase() === 'tv') continue
     const seg = segments[i].toUpperCase()
-    if (/^[A-Z]{2,8}$/.test(seg)) return seg
+    if (/^[A-Z0-9]{2,8}$/.test(seg)) return seg
   }
   return null
 }
@@ -100,7 +103,7 @@ function AutoDiscoverApp() {
           onSubmit={(e) => {
             e.preventDefault()
             const code = manualCode.trim().toUpperCase()
-            if (code) window.location.pathname = `/${code}`
+            if (code) window.location.pathname = `/tv/${code}`
           }}
           style={{ marginTop: '1.5rem' }}
         >

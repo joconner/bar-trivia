@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { RoomStateDto } from '@bar-trivia/shared'
 import { setToken, getToken, refreshAccessToken } from './api'
-import { isTokenExpired } from './jwt'
+import { decodeToken, isTokenExpired } from './jwt'
 import { connectRoom, disconnectRoom } from './socket'
 import Login from './views/Login'
 import PackLibrary from './views/PackLibrary'
@@ -26,11 +26,17 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ id: 'login' })
   const [roomState, setRoomState] = useState<RoomStateDto | null>(null)
 
-  // Try to refresh token on mount
+  // Try to refresh token on mount. A refresh can return a non-host token if
+  // the browser also holds a guest/player session from /player on the same
+  // origin (common on single-laptop dev). Only treat a host token as a host
+  // session; otherwise stay on login so the user sees a real failure mode
+  // instead of "logged in" UI that 403s on every action.
   useEffect(() => {
     refreshAccessToken().then((token) => {
-      if (token) setScreen({ id: 'packs' })
-      // else: no valid session; stay on login
+      if (!token) return
+      const claims = decodeToken(token)
+      if (claims?.['role'] === 'host') setScreen({ id: 'packs' })
+      else setToken(null)
     })
   }, [])
 

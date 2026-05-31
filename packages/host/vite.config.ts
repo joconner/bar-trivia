@@ -44,5 +44,17 @@ export default defineConfig({
   ],
   server: {
     port: 5175,
+    // Same-origin in prod (nginx proxies these to the API); in vite dev the
+    // server lives on :3000 so we proxy here. Keeps host/api.ts using `''` as
+    // its base regardless of which environment it's running in.
+    proxy: {
+      '/auth': 'http://localhost:3000',
+      '/rooms': 'http://localhost:3000',
+      '/packs': 'http://localhost:3000',
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
+    },
   },
 })

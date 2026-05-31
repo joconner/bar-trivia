@@ -322,7 +322,7 @@ describe('createRoom', () => {
     }
   }
 
-  it('creates a room, stores live state, and returns a 4-char code with join url', async () => {
+  it('creates a room, stores live state, and returns a 4-char code', async () => {
     const hostId = randomUUID()
     const pack = mockPack(hostId)
     prisma.pack.findUnique.mockResolvedValue(pack)
@@ -332,7 +332,6 @@ describe('createRoom', () => {
     const result = await service.createRoom(hostId, { packId: pack.id, gameId: pack.games[0].id })
 
     expect(result.roomCode).toMatch(/^[2-9A-HJ-NP-Z]{4}$/)
-    expect(result.joinUrl).toContain(`/join/${result.roomCode}`)
     expect(store.has(result.roomCode)).toBe(true)
   })
 

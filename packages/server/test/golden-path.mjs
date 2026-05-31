@@ -233,12 +233,11 @@ async function run() {
   // ── Step 2: Host creates room → gets room code ──
   step('Host creates room → gets room code')
 
-  const { roomCode, joinUrl } = await api('POST', '/rooms', {
+  const { roomCode } = await api('POST', '/rooms', {
     token: hostToken,
     body: { packId: pack.id, gameId: game.id },
   })
   assert(typeof roomCode === 'string' && roomCode.length === 4, `Room code issued: ${roomCode}`)
-  assert(joinUrl.includes(roomCode), 'Join URL contains room code')
 
   // ── Step 3: TV navigates to /tv/{roomCode} → shows join code + QR ──
   step('TV connects to WebSocket → observes room (simulates /tv/{roomCode})')

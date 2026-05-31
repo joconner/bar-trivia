@@ -1,7 +1,10 @@
 import type { Pack, RoomStateDto } from '@bar-trivia/shared'
 import { decodeToken } from './jwt'
 
-const BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:3000'
+// Same-origin: nginx proxies /auth, /rooms, /packs, /socket.io to the server.
+// A hardcoded localhost:3000 would break the moment the host opens this PWA on
+// their phone via the bar's LAN IP — the phone has no port 3000 of its own.
+const BASE = ''
 const PROACTIVE_LEAD_MS = 90_000
 
 let _token: string | null = null
@@ -174,7 +177,7 @@ export function deleteQuestion(packId: string, gameId: string, questionId: strin
 // --- Rooms ---
 
 export function createRoom(packId: string, gameId: string) {
-  return req<{ roomCode: string; joinUrl: string }>('POST', '/rooms', { packId, gameId })
+  return req<{ roomCode: string }>('POST', '/rooms', { packId, gameId })
 }
 
 export function getRoom(roomCode: string) {

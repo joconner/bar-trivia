@@ -77,8 +77,11 @@ export class RoomsService {
     const state = new RoomState({ roomId: room.id, roomCode, hostId, packId: body.packId, packTitle: pack.title, gameConfig })
     this.store.set(roomCode, state)
 
-    const playerOrigin = process.env.PLAYER_ORIGIN ?? 'http://localhost:5174'
-    return { roomCode, joinUrl: `${playerOrigin}/join/${roomCode}` }
+    // The TV builds the player join URL from its own window.location.origin —
+    // the server doesn't know which hostname (LAN IP, mDNS, etc.) the TV was
+    // opened at, so any URL the server constructs would lie to mobile devices
+    // on the same Wi-Fi. Clients that need the join link derive it themselves.
+    return { roomCode }
   }
 
   getRoomStateDto(roomCode: string): RoomStateDto {

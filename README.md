@@ -6,85 +6,73 @@ Live trivia game built for bars. A host runs the game from a phone, players answ
 
 ## Running locally
 
-Brings up the API, Postgres, and all three clients on one machine.
+The canonical local stack is `docker compose up`: Postgres, the server, and an nginx that serves all three clients on a single port. Bare-IP visits redirect to the TV; the host and player live at `/host` and `/player` respectively.
 
-**Prerequisites:** Node 22 (see [`.nvmrc`](.nvmrc)), npm 10+, and **either** Docker (simplest way to get Postgres) **or** a local Postgres 16.
+**Prerequisites:** Docker (and Docker Compose v2). Node 22 (see [`.nvmrc`](.nvmrc)) and npm 10+ are only required for the optional outside-Docker workflow at the end of this section.
 
-### 1. Install dependencies
+### 1. Create your `.env`
+
+The single `.env` at the repo root drives both Docker Compose interpolation and the server's process environment. Copy the template and fill in real secrets:
 
 ```bash
-nvm use        # selects Node 22
-npm install    # installs all workspaces; the server's postinstall also runs `prisma generate`
+cp .env.example .env
 ```
 
-### 2. Start Postgres
+Generate proper secrets for `JWT_SECRET` and `COOKIE_SECRET` (32+ bytes each):
 
-**Option A — Docker (recommended).** Starts only the `postgres` service from [`docker-compose.yml`](docker-compose.yml) on `localhost:5432` (database, user, and password are all `bartrivia`):
+```bash
+echo "JWT_SECRET=$(openssl rand -hex 32)"
+echo "COOKIE_SECRET=$(openssl rand -hex 32)"
+```
+
+`.env` is gitignored. Same filename for dev and prod — only the contents differ. The server validates the variables at startup and refuses to boot on missing or malformed values (see `packages/server/src/config/env.schema.ts`).
+
+### 2. (Optional) Per-client hostnames for single-laptop testing
+
+When `/host`, `/player`, and `/tv` all live at the same origin (`http://localhost`) in one browser, they share cookies and localStorage. That's harmless in a real venue (three separate devices) but confusing on a single laptop — a guest session minted by `/player` can shadow a host session on `/host`.
+
+To give each client its own cookie jar in dev, add to `/etc/hosts`:
+
+```
+127.0.0.1 host.localhost player.localhost tv.localhost
+```
+
+Then open the clients at `http://host.localhost/host`, `http://player.localhost/player`, and `http://tv.localhost/tv`. Browsers treat the three hostnames as separate origins, so no cross-client leakage. The server's CORS allowlist already accepts `*.localhost`.
+
+### 3. Bring up the stack
+
+```bash
+docker compose up --build
+```
+
+This starts Postgres, runs `prisma db push && prisma db seed` in the server container, then serves the API on `:3000` and nginx on `:80`. Wait for the line `Server running on http://localhost:3000`, then visit:
+
+- TV: <http://localhost/tv> (or just <http://localhost> — bare URL redirects to `/tv`)
+- Host: <http://localhost/host>
+- Player: <http://localhost/player>
+
+### 4. Play a game
+
+1. **Host** — open `/host`, **Register** to create a host account, build a pack + game with a few questions, then create a room. You'll get a 4-character room code.
+2. **TV** — open `/tv` and enter the room code, or open `/tv/CODE` directly.
+3. **Players** — scan the TV's QR code or open `/player` and join with the room code. No account required.
+4. Drive the game from the host; TV and players update live over WebSockets.
+
+The seeded "Trivia Host" account has no password (it only exists to own the demo pack), so register your own host account to sign in.
+
+### Outside-Docker workflow (server only)
+
+If you want hot-reloads on the server without rebuilding the container, run Postgres in Docker and the server on the host:
 
 ```bash
 docker compose up -d postgres
+# In your .env, change DATABASE_URL to use localhost instead of the postgres service name:
+#   DATABASE_URL=postgresql://bartrivia:bartrivia@localhost:5432/bartrivia
+npm install
+npm run dev:server
 ```
 
-**Option B — local Postgres.** Create the database and a matching role:
-
-```bash
-createdb bartrivia
-psql -d bartrivia -c "CREATE ROLE bartrivia WITH LOGIN PASSWORD 'bartrivia'; ALTER DATABASE bartrivia OWNER TO bartrivia;"
-```
-
-(Any database/credentials work — just make `DATABASE_URL` in the next step match.)
-
-### 3. Configure the server environment
-
-The server reads `packages/server/.env`. Copy the example and edit it:
-
-```bash
-cp .env.example packages/server/.env
-```
-
-Set `DATABASE_URL` to match your Postgres. For either option above:
-
-```
-DATABASE_URL=postgresql://bartrivia:bartrivia@localhost:5432/bartrivia
-```
-
-Also set `JWT_SECRET` to any 32+ character string. Keep `NODE_ENV=development` (so auth cookies are sent over plain `http://localhost`) and leave `CLIENT_ORIGINS` as-is — it already lists the three client ports.
-
-### 4. Create the schema and seed demo data
-
-```bash
-cd packages/server
-npx prisma migrate deploy   # creates the tables
-npx prisma db seed          # optional: demo pack with 2 games / 40 questions
-cd ../..
-```
-
-> Use `prisma db seed` (not `ts-node prisma/seed.ts` directly) — the seed script relies on Prisma's CLI to load `.env`.
-
-### 5. Run the server and clients
-
-Each runs in the foreground, so use four terminals (or background them):
-
-```bash
-npm run dev:server   # API + WebSocket → http://localhost:3000
-npm run dev:tv       # TV display      → http://localhost:5173
-npm run dev:player   # Player PWA      → http://localhost:5174
-npm run dev:host     # Host PWA        → http://localhost:5175
-```
-
-The clients default to `http://localhost:3000` for the API, so no client-side config is needed for local dev.
-
-### 6. Play a game
-
-1. **Host** — open <http://localhost:5175>, click **Register** to create a host account, build a pack + game with a few questions, then create a room. You'll get a 4-character room code.
-2. **TV** — open `http://localhost:5173/?roomCode=CODE` (replace `CODE`). Use the `?roomCode=` form: room codes can contain digits, which the bare `/CODE` path does not yet recognize.
-3. **Players** — open <http://localhost:5174> in other tabs/devices and join with the room code. No account required.
-4. Drive the game from the host; the TV and players update live over WebSockets.
-
-**Notes:**
-- The seeded "Trivia Host" account has no password (it only exists to own the demo pack), so register your own host account to sign in.
-- To join from real phones instead of browser tabs, replace `localhost` with your machine's LAN IP and add that origin to `CLIENT_ORIGINS`.
-- An end-to-end smoke test of the whole journey lives at `packages/server/test/golden-path.mjs`: with the server running, `cd packages/server && node test/golden-path.mjs`.
+The server reads `.env` from the repo root regardless of cwd (resolved relative to `main.ts`). An end-to-end smoke test of the whole journey lives at `packages/server/test/golden-path.mjs`: with the server running, `cd packages/server && SERVER_URL=http://localhost:3000 node test/golden-path.mjs`.
 
 ## Testing
 

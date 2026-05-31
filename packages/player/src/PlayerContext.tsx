@@ -131,11 +131,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
 
       const claims = decodeToken(token)
+      const role = claims?.['role'] as string | undefined
       const roomCode = claims?.['roomCode'] as string | undefined
       const participantId = claims?.['roomParticipantId'] as string | undefined
       const displayName = claims?.['displayName'] as string | undefined
 
-      if (roomCode && participantId && !isTokenExpired(token)) {
+      // Only guest/player sessions belong in the reconnect path. A host token
+      // (from a host session on the same origin) carries no room claims and
+      // would fall through anyway, but checking role explicitly keeps the rule
+      // visible instead of relying on claim-shape coincidence.
+      const isPlayerSession = role === 'guest' || role === 'player'
+
+      if (isPlayerSession && roomCode && participantId && !isTokenExpired(token)) {
         // Reconnect path: we have valid room claims, connect socket directly.
         setState((s) => ({
           ...s,

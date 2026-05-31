@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { io } from 'socket.io-client'
 import type { RoomStateDto } from '@bar-trivia/shared'
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3000'
-
+// Same-origin: nginx proxies /socket.io to the server. A hardcoded
+// localhost:3000 would break the moment the TV is opened on the bar's LAN IP.
 export function useRoomState(roomCode: string) {
   const [state, setState] = useState<RoomStateDto | null>(null)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const socket = io(SERVER_URL, {
+    const socket = io('', {
       query: { roomCode },
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
