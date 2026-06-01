@@ -1,0 +1,55 @@
+# Combined image for Render deployment: builds all three React SPAs then
+# packages them alongside the NestJS server. The server serves static files
+# directly from packages/{tv,host,player}/dist/ — no nginx needed.
+#
+# Build: docker build -f Dockerfile.render -t ghcr.io/joconner/bar-trivia:latest .
+# Run:   docker run -e JWT_SECRET=... -e COOKIE_SECRET=... -p 10000:10000 ghcr.io/joconner/bar-trivia:latest
+
+FROM node:22-alpine AS base
+WORKDIR /app
+
+# Install all workspace deps once; shared across build stages.
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json   ./packages/shared/
+COPY packages/tv/package.json       ./packages/tv/
+COPY packages/player/package.json   ./packages/player/
+COPY packages/host/package.json     ./packages/host/
+COPY packages/server/package.json   ./packages/server/
+COPY packages/server/prisma         ./packages/server/prisma/
+
+# apk deps for @node-rs/argon2 native build and openssl for Prisma
+RUN apk add --no-cache python3 make g++ openssl && npm ci
+
+COPY tsconfig.base.json ./
+COPY packages/shared/   ./packages/shared/
+COPY packages/tv/       ./packages/tv/
+COPY packages/player/   ./packages/player/
+COPY packages/host/     ./packages/host/
+COPY packages/server/   ./packages/server/
+
+# Build React SPAs
+FROM base AS tv-build
+RUN cd packages/tv && npx vite build
+
+FROM base AS player-build
+RUN cd packages/player && npx vite build
+
+FROM base AS host-build
+RUN cd packages/host && npx vite build
+
+# Final image: server + built SPAs + SQLite Prisma client
+FROM base AS final
+COPY --from=tv-build     /app/packages/tv/dist     ./packages/tv/dist
+COPY --from=player-build /app/packages/player/dist ./packages/player/dist
+COPY --from=host-build   /app/packages/host/dist   ./packages/host/dist
+
+# Generate SQLite Prisma client
+RUN cd packages/server && npx prisma generate --schema=prisma/schema.sqlite.prisma
+
+EXPOSE 10000
+
+ENV DATABASE_URL=file:./prisma/bar-trivia.db
+ENV NODE_ENV=production
+ENV PORT=10000
+
+ENTRYPOINT ["sh", "-c", "cd /app/packages/server && npx prisma db push --schema=prisma/schema.sqlite.prisma && npx prisma db seed && npx ts-node --transpile-only src/main.ts"]
