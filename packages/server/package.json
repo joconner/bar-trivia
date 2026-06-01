@@ -10,6 +10,8 @@
     "dev": "ts-node src/main.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate deploy",
+    "db:push": "prisma db push",
     "test:golden-path": "node test/golden-path.mjs",
     "seed:pack": "ts-node scripts/seed-pack.ts"
   },

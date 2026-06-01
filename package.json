@@ -9,6 +9,7 @@
     "dev:tv": "npm run dev --workspace=packages/tv",
     "dev:player": "npm run dev --workspace=packages/player",
     "dev:host": "npm run dev --workspace=packages/host",
+    "db:migrate": "npm run db:migrate --workspace=packages/server",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",

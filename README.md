@@ -69,6 +69,7 @@ docker compose up -d postgres
 # In your .env, change DATABASE_URL to use localhost instead of the postgres service name:
 #   DATABASE_URL=postgresql://bartrivia:bartrivia@localhost:5432/bartrivia
 npm install
+npm run db:migrate
 npm run dev:server
 ```
 
