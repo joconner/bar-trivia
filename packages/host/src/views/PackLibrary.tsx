@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { HOUSE_USER_ID, type Pack } from '@bar-trivia/shared'
-import { listPacks, createPack, logout, getSubscriptionStatus } from '../api'
+import { listPacks, createPack, logout, getSubscriptionStatus, createPortalSession } from '../api'
 
 interface SubscriptionBannerProps {
   status: string
@@ -75,6 +75,7 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
   const [showCreate, setShowCreate] = useState(false)
   const [subStatus, setSubStatus] = useState<{ status: string; trialEndsAt: string | null } | null>(null)
   const [justSubscribed, setJustSubscribed] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
 
   useEffect(() => {
     // Detect Stripe checkout success return and clean the URL
@@ -117,11 +118,37 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
     onLogout()
   }
 
+  async function handleManageBilling() {
+    setPortalLoading(true)
+    try {
+      const returnUrl = `${window.location.origin}/host/`
+      const { url } = await createPortalSession(returnUrl)
+      window.location.href = url
+    } catch {
+      setPortalLoading(false)
+    }
+  }
+
+  const isActiveSubscriber = subStatus?.status === 'active' || subStatus?.status === 'trialing'
+
   return (
     <div className="screen">
       <div className="screen-header">
         <h1 className="screen-title">My Packs</h1>
-        <button className="btn-icon btn-sm" onClick={handleLogout}>Sign out</button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {isActiveSubscriber && (
+            <button
+              className="btn-icon btn-sm"
+              onClick={handleManageBilling}
+              disabled={portalLoading}
+              title="Manage billing"
+              style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}
+            >
+              {portalLoading ? '…' : 'Billing'}
+            </button>
+          )}
+          <button className="btn-icon btn-sm" onClick={handleLogout}>Sign out</button>
+        </div>
       </div>
 
       {justSubscribed && (
