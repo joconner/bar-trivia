@@ -1,6 +1,13 @@
 import type { Pack, RoomStateDto } from '@bar-trivia/shared'
 import { decodeToken } from './jwt'
 
+export class SubscriptionRequiredError extends Error {
+  constructor(public readonly subscriptionStatus: string) {
+    super('Subscription required')
+    this.name = 'SubscriptionRequiredError'
+  }
+}
+
 // Same-origin: nginx proxies /auth, /rooms, /packs, /socket.io to the server.
 // A hardcoded localhost:3000 would break the moment the host opens this PWA on
 // their phone via the bar's LAN IP — the phone has no port 3000 of its own.
@@ -73,6 +80,10 @@ async function req<T>(method: string, path: string, body?: unknown, retried = fa
   if (res.status === 204) return undefined as T
 
   const data = await res.json().catch(() => ({ message: res.statusText }))
+
+  if (res.status === 402) {
+    throw new SubscriptionRequiredError(data?.subscriptionStatus ?? 'unknown')
+  }
 
   if (!res.ok) {
     const msg = data?.message ?? `HTTP ${res.status}`
@@ -172,6 +183,20 @@ export function updateQuestion(packId: string, gameId: string, questionId: strin
 
 export function deleteQuestion(packId: string, gameId: string, questionId: string) {
   return req<void>('DELETE', `/packs/${packId}/games/${gameId}/questions/${questionId}`)
+}
+
+// --- Subscriptions ---
+
+export function getSubscriptionStatus() {
+  return req<{ status: string; trialEndsAt: string | null; isActive: boolean }>('GET', '/subscriptions/status')
+}
+
+export function createCheckoutSession(successUrl: string, cancelUrl: string) {
+  return req<{ url: string }>('POST', '/subscriptions/checkout', { successUrl, cancelUrl })
+}
+
+export function createPortalSession(returnUrl: string) {
+  return req<{ url: string }>('POST', '/subscriptions/portal', { returnUrl })
 }
 
 // --- Rooms ---

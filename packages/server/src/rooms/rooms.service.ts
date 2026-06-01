@@ -18,6 +18,7 @@ import {
   PlayerSummary,
   FinalPodiumEntry,
   AccessTokenPayload,
+  HOUSE_USER_ID,
 } from '@bar-trivia/shared'
 
 @Injectable()
@@ -47,7 +48,12 @@ export class RoomsService {
     })
 
     if (!pack) throw new NotFoundException('Pack not found')
-    if (pack.ownerId !== hostId) throw new ForbiddenException('Not your pack')
+    // Hosts can run rooms from their own packs OR from any house (shared) pack.
+    // The room.hostId still records who's actually running the room — the
+    // pack's ownership is decoupled from the room's host.
+    if (pack.ownerId !== hostId && pack.ownerId !== HOUSE_USER_ID) {
+      throw new ForbiddenException('Not your pack')
+    }
 
     const game = pack.games[0]
     if (!game) throw new NotFoundException('Game not found in pack')

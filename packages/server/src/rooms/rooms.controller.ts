@@ -16,11 +16,15 @@ import { RoomsService } from './rooms.service'
 import { Roles } from '../auth/roles.decorator'
 import { Public } from '../auth/public.decorator'
 import { CurrentUser } from '../auth/current-user.decorator'
+import { RequiresSubscription } from '../auth/requires-subscription.decorator'
 import { AccessTokenPayload, SubmitAnswerRequestSchema } from '@bar-trivia/shared'
 
+// packId and gameId aren't constrained to uuids — shared (house) packs use
+// stable derived ids like "house-pack-history" / "house-pack-history-game-1".
+// Same relaxation as PackSchema/GameSchema in @bar-trivia/shared.
 const CreateRoomSchema = z.object({
-  packId: z.string().uuid(),
-  gameId: z.string().uuid(),
+  packId: z.string().min(1),
+  gameId: z.string().min(1),
 })
 class CreateRoomDto extends createZodDto(CreateRoomSchema) {}
 
@@ -30,7 +34,7 @@ const UpdateLobbySchema = z.object({
 })
 class UpdateLobbyDto extends createZodDto(UpdateLobbySchema) {}
 
-const SelectGameSchema = z.object({ gameId: z.string().uuid() })
+const SelectGameSchema = z.object({ gameId: z.string().min(1) })
 class SelectGameDto extends createZodDto(SelectGameSchema) {}
 
 const KickSchema = z.object({ participantId: z.string().uuid() })
@@ -53,6 +57,7 @@ export class RoomsController {
 
   @Post()
   @Roles('host')
+  @RequiresSubscription()
   async createRoom(@Body() body: CreateRoomDto, @CurrentUser() user: AccessTokenPayload) {
     return this.rooms.createRoom(user.sub, body)
   }

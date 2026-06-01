@@ -137,7 +137,7 @@ describe('GameSchema', () => {
 })
 
 describe('PackSchema', () => {
-  it('accepts a pack with a uuid owner and games array', () => {
+  it('accepts a pack with uuid ids and games array', () => {
     const pack = {
       id: randomUUID(),
       title: 'Trivia Night',
@@ -147,8 +147,14 @@ describe('PackSchema', () => {
     expect(PackSchema.parse(pack).title).toBe('Trivia Night')
   })
 
-  it('rejects a non-uuid ownerId', () => {
-    const pack = { id: randomUUID(), title: 'T', ownerId: 'nope', games: [] }
+  it('accepts a pack with the synthetic house ownerId', () => {
+    // Shared packs are owned by HOUSE_USER_ID ('house-user'), not a uuid.
+    const pack = { id: 'house-pack-history', title: 'History', ownerId: 'house-user', games: [] }
+    expect(PackSchema.safeParse(pack).success).toBe(true)
+  })
+
+  it('rejects an empty ownerId', () => {
+    const pack = { id: randomUUID(), title: 'T', ownerId: '', games: [] }
     expect(PackSchema.safeParse(pack).success).toBe(false)
   })
 })

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common'
 import { LateJoinPolicy, PhoneTextMode } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import type { MultipleChoiceData } from '@bar-trivia/shared'
+import { HOUSE_USER_ID, type MultipleChoiceData } from '@bar-trivia/shared'
 
 const GAME_INCLUDE = {
   questions: { orderBy: { position: 'asc' as const } },
@@ -23,12 +23,27 @@ const PACK_INCLUDE = {
 export class PacksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listPacks(ownerId: string) {
-    return this.prisma.pack.findMany({
-      where: { ownerId, deletedAt: null },
-      include: PACK_INCLUDE,
-      orderBy: { createdAt: 'asc' },
-    })
+  // Hosts see the shared house library plus their own packs. House packs are
+  // returned first so a fresh host has trivia to run immediately; the client
+  // distinguishes the two classes by ownerId (=== HOUSE_USER_ID means shared,
+  // read-only). Two queries instead of one with combined OR + sort because
+  // Prisma can't sort by a computed "is house pack" boolean.
+  async listPacks(ownerId: string) {
+    const [housePacks, ownPacks] = await Promise.all([
+      this.prisma.pack.findMany({
+        where: { ownerId: HOUSE_USER_ID, deletedAt: null },
+        include: PACK_INCLUDE,
+        orderBy: { createdAt: 'asc' },
+      }),
+      ownerId === HOUSE_USER_ID
+        ? Promise.resolve([])
+        : this.prisma.pack.findMany({
+            where: { ownerId, deletedAt: null },
+            include: PACK_INCLUDE,
+            orderBy: { createdAt: 'asc' },
+          }),
+    ])
+    return [...housePacks, ...ownPacks]
   }
 
   createPack(ownerId: string, title: string) {
@@ -38,13 +53,20 @@ export class PacksService {
     })
   }
 
+  // Read access: the caller can view their own packs OR any house (shared)
+  // pack. Write access (update/delete/addGame/etc.) still requires real
+  // ownership — that check lives in requirePackOwner, used by the mutating
+  // endpoints. Keeping read and write authorization separate is what makes
+  // shared packs work without giving anyone permission to mutate them.
   async getPack(packId: string, ownerId: string) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
       include: PACK_INCLUDE,
     })
     if (!pack || pack.deletedAt !== null) throw new NotFoundException('Pack not found')
-    this.checkOwner(pack.ownerId, ownerId)
+    if (pack.ownerId !== ownerId && pack.ownerId !== HOUSE_USER_ID) {
+      throw new ForbiddenException('Not the pack owner')
+    }
     return pack
   }
 

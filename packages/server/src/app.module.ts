@@ -5,9 +5,10 @@ import { AuthModule } from './auth/auth.module'
 import { UsersModule } from './users/users.module'
 import { PacksModule } from './packs/packs.module'
 import { RoomsModule } from './rooms/rooms.module'
+import { SubscriptionsModule } from './subscriptions/subscriptions.module'
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, PacksModule, RoomsModule],
+  imports: [PrismaModule, AuthModule, UsersModule, PacksModule, RoomsModule, SubscriptionsModule],
   controllers: [HealthController],
   providers: [],
 })

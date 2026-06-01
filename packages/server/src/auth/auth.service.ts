@@ -43,12 +43,16 @@ export class AuthService {
     if (existing) throw new ConflictException('Email already registered')
 
     const passwordHash = await hash(body.password)
+    const trialDays = Number(process.env['STRIPE_TRIAL_DAYS'] ?? 14)
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000)
     const user = await this.prisma.user.create({
       data: {
         role: 'host',
         email: body.email,
         displayName: body.displayName,
         passwordHash,
+        subscriptionStatus: 'trial',
+        trialEndsAt,
       },
     })
 

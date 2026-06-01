@@ -22,11 +22,37 @@ describe('createPack / listPacks', () => {
     )
   })
 
-  it('lists only the callers non-deleted packs', () => {
-    service.listPacks(OWNER)
-    expect(prisma.pack.findMany).toHaveBeenCalledWith(
+  it('lists house packs first, then the callers non-deleted packs', async () => {
+    const housePacks = [{ id: 'house-pack-history', ownerId: 'house-user', games: [] }]
+    const ownPacks = [{ id: 'p1', ownerId: OWNER, games: [] }]
+    prisma.pack.findMany
+      .mockResolvedValueOnce(housePacks as never)
+      .mockResolvedValueOnce(ownPacks as never)
+
+    const result = await service.listPacks(OWNER)
+
+    expect(prisma.pack.findMany).toHaveBeenCalledTimes(2)
+    expect(prisma.pack.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ where: { ownerId: 'house-user', deletedAt: null } }),
+    )
+    expect(prisma.pack.findMany).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({ where: { ownerId: OWNER, deletedAt: null } }),
     )
+    expect(result).toEqual([...housePacks, ...ownPacks])
+  })
+
+  it('lists only house packs when the house user lists its own', async () => {
+    // The house user listing itself should not double-fetch. The query
+    // returns house packs once, and the "own" query is short-circuited.
+    const housePacks = [{ id: 'house-pack-history', ownerId: 'house-user', games: [] }]
+    prisma.pack.findMany.mockResolvedValueOnce(housePacks as never)
+
+    const result = await service.listPacks('house-user')
+
+    expect(prisma.pack.findMany).toHaveBeenCalledTimes(1)
+    expect(result).toEqual(housePacks)
   })
 })
 
@@ -56,6 +82,38 @@ describe('ownership enforcement', () => {
   it('deletePack refuses when the pack is missing', async () => {
     prisma.pack.findUnique.mockResolvedValue(null)
     await expect(service.deletePack('p1', OWNER)).rejects.toBeInstanceOf(NotFoundException)
+  })
+})
+
+describe('shared (house) packs are readable by any host', () => {
+  it('getPack returns a house pack to any host (not just its owner)', async () => {
+    const housePack = { id: 'house-pack-history', ownerId: 'house-user', deletedAt: null }
+    prisma.pack.findUnique.mockResolvedValue(housePack)
+    await expect(service.getPack('house-pack-history', OWNER)).resolves.toBe(housePack)
+  })
+
+  it('getPack still rejects packs belonging to other hosts', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'someone-else', deletedAt: null })
+    await expect(service.getPack('p1', OWNER)).rejects.toBeInstanceOf(ForbiddenException)
+  })
+})
+
+describe('shared (house) packs are read-only', () => {
+  it('a regular host cannot edit a house-owned pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'house-user', deletedAt: null })
+    await expect(service.updatePack('p1', OWNER, 'New title')).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.pack.update).not.toHaveBeenCalled()
+  })
+
+  it('a regular host cannot delete a house-owned pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'house-user', deletedAt: null })
+    await expect(service.deletePack('p1', OWNER)).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('a regular host cannot add games to a house-owned pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'house-user', deletedAt: null })
+    await expect(service.addGame('p1', OWNER, { title: 'sneaky' })).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.game.create).not.toHaveBeenCalled()
   })
 })
 

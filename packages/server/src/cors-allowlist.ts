@@ -13,12 +13,17 @@
 //     reserved for link-local resolution — never routable on the public net.
 //   - ALLOWED_ORIGINS env var: comma-separated list of exact origins for
 //     production deployments (e.g. https://bar-trivia.onrender.com).
+//   - RENDER_EXTERNAL_URL: auto-detected on Render.com so no manual config needed.
 
 const ALLOWED_HOST_REGEX =
   /^(localhost|[A-Za-z0-9-]+\.localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+\.local)$/
 
 function extraAllowedOrigins(): string[] {
-  return (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  const list = (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  // Render injects RENDER_EXTERNAL_URL (e.g. https://bar-trivia.onrender.com).
+  // Auto-add it so single-origin deploys work without manual ALLOWED_ORIGINS config.
+  if (process.env.RENDER_EXTERNAL_URL) list.push(process.env.RENDER_EXTERNAL_URL)
+  return list
 }
 
 export function isAllowedOrigin(origin: string | undefined): boolean {

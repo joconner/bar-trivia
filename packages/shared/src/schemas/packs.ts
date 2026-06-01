@@ -23,8 +23,13 @@ export type MultipleChoiceData = z.infer<typeof MultipleChoiceDataSchema>
 export const QuestionDataSchema = MultipleChoiceDataSchema
 export type QuestionData = z.infer<typeof QuestionDataSchema>
 
+// Pack / Game / Question ids are server-generated, server-stored, and never
+// supplied by the wire. Most are uuids (from Prisma defaults) but seeded
+// shared packs use stable derived ids like "house-pack-general-knowledge",
+// so the schema accepts any non-empty string. Choice ids stay uuid-shaped
+// because they're content-shape constraints the host UI relies on.
 export const QuestionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   type: QuestionTypeSchema,
   prompt: z.string().min(1).max(1000),
   imageUrl: z.string().url().nullable(),
@@ -35,7 +40,7 @@ export const QuestionSchema = z.object({
 export type Question = z.infer<typeof QuestionSchema>
 
 export const GameSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   title: z.string().min(1).max(100),
   questions: z.array(QuestionSchema),
   lateJoinDefault: z.enum(['open', 'locked']).default('open'),
@@ -45,9 +50,9 @@ export const GameSchema = z.object({
 export type Game = z.infer<typeof GameSchema>
 
 export const PackSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   title: z.string().min(1).max(100),
-  ownerId: z.string().uuid(),
+  ownerId: z.string().min(1),
   games: z.array(GameSchema),
 })
 export type Pack = z.infer<typeof PackSchema>

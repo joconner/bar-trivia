@@ -30,17 +30,23 @@ enum PhoneTextMode {
 }
 
 model User {
-  id           String            @id @default(uuid())
-  role         UserRole
-  displayName  String
-  email        String?           @unique
-  passwordHash String?
-  createdAt    DateTime          @default(now())
-  lastSeenAt   DateTime          @default(now())
-  refreshTokens RefreshToken[]
-  participants RoomParticipant[]
-  hostedRooms  Room[]            @relation("RoomHost")
-  ownedPacks   Pack[]
+  id                   String            @id @default(uuid())
+  role                 UserRole
+  displayName          String
+  email                String?           @unique
+  passwordHash         String?
+  createdAt            DateTime          @default(now())
+  lastSeenAt           DateTime          @default(now())
+  // Billing fields — only populated for host accounts
+  stripeCustomerId     String?           @unique
+  subscriptionStatus   String            @default("trial")
+  trialEndsAt          DateTime?
+  refreshTokens        RefreshToken[]
+  participants         RoomParticipant[]
+  hostedRooms          Room[]            @relation("RoomHost")
+  ownedPacks           Pack[]
+
+  @@index([subscriptionStatus])
 }
 
 model RefreshToken {

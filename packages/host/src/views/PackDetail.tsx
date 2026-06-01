@@ -1,15 +1,16 @@
 import { useState, useEffect, FormEvent } from 'react'
-import type { Pack, Game } from '@bar-trivia/shared'
-import { getPack, createRoom, addGame, deleteGame, deleteQuestion } from '../api'
+import { HOUSE_USER_ID, type Pack, type Game } from '@bar-trivia/shared'
+import { getPack, createRoom, addGame, deleteGame, deleteQuestion, SubscriptionRequiredError } from '../api'
 
 interface Props {
   packId: string
   onBack: () => void
   onAddQuestion: (gameId: string, questionId?: string) => void
   onStartRoom: (roomCode: string) => void
+  onSubscribeRequired: () => void
 }
 
-export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom }: Props) {
+export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom, onSubscribeRequired }: Props) {
   const [pack, setPack] = useState<Pack | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -44,6 +45,10 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
       const { roomCode } = await createRoom(pack.id, game.id)
       onStartRoom(roomCode)
     } catch (err) {
+      if (err instanceof SubscriptionRequiredError) {
+        onSubscribeRequired()
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to create room')
     } finally {
       setStartingRoom(null)
@@ -93,11 +98,34 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
   if (loading) return <div className="screen"><p className="loading">Loading…</p></div>
   if (!pack) return <div className="screen"><p className="error-msg">{error || 'Pack not found'}</p></div>
 
+  // Shared house packs are read-only: hosts can run rooms from them but can't
+  // edit games, add questions, or delete anything. Server enforces this via
+  // requirePackOwner; the UI just hides the affordances to match.
+  const isShared = pack.ownerId === HOUSE_USER_ID
+
   return (
     <div className="screen">
       <div className="screen-header">
         <button className="btn-icon btn-sm" onClick={onBack}>‹</button>
-        <h1 className="screen-title">{pack.title}</h1>
+        <h1 className="screen-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {pack.title}
+          {isShared && (
+            <span
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                padding: '0.1rem 0.4rem',
+                background: 'var(--accent-dim, #1e3a8a)',
+                color: 'var(--accent, #93c5fd)',
+                borderRadius: '0.25rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em',
+              }}
+            >
+              Shared
+            </span>
+          )}
+        </h1>
       </div>
 
       {error && <p className="error-msg" style={{ marginBottom: '0.75rem' }}>{error}</p>}
@@ -137,8 +165,8 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
                         {idx + 1}.
                       </span>
                       <div
-                        style={{ flex: 1, cursor: 'pointer', fontSize: '0.9rem' }}
-                        onClick={() => onAddQuestion(game.id, q.id)}
+                        style={{ flex: 1, cursor: isShared ? 'default' : 'pointer', fontSize: '0.9rem' }}
+                        onClick={() => !isShared && onAddQuestion(game.id, q.id)}
                       >
                         <div style={{ fontWeight: 500 }}>{q.prompt}</div>
                         <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>
@@ -146,23 +174,27 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
                           {q.imageUrl ? ' · has image' : ''}
                         </div>
                       </div>
-                      <button
-                        className="btn-icon btn-sm"
-                        style={{ color: 'var(--danger)', border: 'none', background: 'none', padding: '0.25rem' }}
-                        onClick={() => handleDeleteQuestion(game.id, q.id)}
-                      >
-                        ✕
-                      </button>
+                      {!isShared && (
+                        <button
+                          className="btn-icon btn-sm"
+                          style={{ color: 'var(--danger)', border: 'none', background: 'none', padding: '0.25rem' }}
+                          onClick={() => handleDeleteQuestion(game.id, q.id)}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   ))}
 
                   <div className="action-row" style={{ marginTop: '0.75rem' }}>
-                    <button
-                      className="btn-secondary btn-sm"
-                      onClick={() => onAddQuestion(game.id)}
-                    >
-                      + Question
-                    </button>
+                    {!isShared && (
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => onAddQuestion(game.id)}
+                      >
+                        + Question
+                      </button>
+                    )}
                     <button
                       className="btn-success btn-sm"
                       disabled={game.questions.length === 0 || startingRoom === game.id}
@@ -172,12 +204,14 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
                     </button>
                   </div>
 
-                  <button
-                    style={{ marginTop: '0.5rem', background: 'none', color: 'var(--danger)', fontSize: '0.8rem', width: 'auto', padding: '0.25rem 0' }}
-                    onClick={() => handleDeleteGame(game.id)}
-                  >
-                    Delete game
-                  </button>
+                  {!isShared && (
+                    <button
+                      style={{ marginTop: '0.5rem', background: 'none', color: 'var(--danger)', fontSize: '0.8rem', width: 'auto', padding: '0.25rem 0' }}
+                      onClick={() => handleDeleteGame(game.id)}
+                    >
+                      Delete game
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -185,37 +219,39 @@ export default function PackDetail({ packId, onBack, onAddQuestion, onStartRoom 
         })}
       </div>
 
-      <div className="bottom-actions">
-        {showNewGame ? (
-          <form onSubmit={handleAddGame}>
-            <div className="field">
-              <label htmlFor="gameTitle">Game title</label>
-              <input
-                id="gameTitle"
-                type="text"
-                value={newGameTitle}
-                onChange={(e) => setNewGameTitle(e.target.value)}
-                placeholder="e.g. Round 1 - Pop Music"
-                autoFocus
-                maxLength={100}
-              />
-            </div>
-            {addGameError && <p className="error-msg" style={{ marginBottom: '0.5rem' }}>{addGameError}</p>}
-            <div className="action-row">
-              <button type="button" className="btn-secondary" onClick={() => setShowNewGame(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="btn-primary" disabled={addingGame || !newGameTitle.trim()}>
-                {addingGame ? 'Adding…' : 'Add game'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <button className="btn-secondary" onClick={() => setShowNewGame(true)}>
-            + Add Game
-          </button>
-        )}
-      </div>
+      {!isShared && (
+        <div className="bottom-actions">
+          {showNewGame ? (
+            <form onSubmit={handleAddGame}>
+              <div className="field">
+                <label htmlFor="gameTitle">Game title</label>
+                <input
+                  id="gameTitle"
+                  type="text"
+                  value={newGameTitle}
+                  onChange={(e) => setNewGameTitle(e.target.value)}
+                  placeholder="e.g. Round 1 - Pop Music"
+                  autoFocus
+                  maxLength={100}
+                />
+              </div>
+              {addGameError && <p className="error-msg" style={{ marginBottom: '0.5rem' }}>{addGameError}</p>}
+              <div className="action-row">
+                <button type="button" className="btn-secondary" onClick={() => setShowNewGame(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={addingGame || !newGameTitle.trim()}>
+                  {addingGame ? 'Adding…' : 'Add game'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button className="btn-secondary" onClick={() => setShowNewGame(true)}>
+              + Add Game
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

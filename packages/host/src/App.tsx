@@ -10,6 +10,7 @@ import QuestionForm from './views/QuestionForm'
 import RoomLobby from './views/RoomLobby'
 import InGame from './views/InGame'
 import Final from './views/Final'
+import Subscribe from './views/Subscribe'
 
 export type Screen =
   | { id: 'login' }
@@ -19,6 +20,7 @@ export type Screen =
   | { id: 'lobby'; roomCode: string; packId: string }
   | { id: 'in-game'; roomCode: string; packId: string }
   | { id: 'final'; roomCode: string; packId: string }
+  | { id: 'subscribe' }
 
 const ROOM_SCREENS = new Set<Screen['id']>(['lobby', 'in-game', 'final'])
 
@@ -102,6 +104,7 @@ export default function App() {
         <PackLibrary
           onOpenPack={(packId) => navigate({ id: 'pack-detail', packId })}
           onLogout={handleLogout}
+          onSubscribeRequired={() => navigate({ id: 'subscribe' })}
         />
       )
 
@@ -116,6 +119,7 @@ export default function App() {
           onStartRoom={(roomCode) =>
             navigate({ id: 'lobby', roomCode, packId: screen.packId })
           }
+          onSubscribeRequired={() => navigate({ id: 'subscribe' })}
         />
       )
 
@@ -159,5 +163,8 @@ export default function App() {
           onNextGame={(gameId) => navigate({ id: 'lobby', roomCode: screen.roomCode, packId: screen.packId })}
         />
       )
+
+    case 'subscribe':
+      return <Subscribe onBack={() => navigate({ id: 'packs' })} />
   }
 }
