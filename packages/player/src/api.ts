@@ -1,8 +1,9 @@
 // REST API client for the player app.
-// All paths are relative so Vite's dev proxy forwards them to the server.
+// Paths are relative in same-origin deploys; set VITE_API_URL at build time
+// when the frontend is hosted separately (e.g. Cloudflare Pages + Railway).
 import { getAccessToken, refreshAccessToken } from './token-store'
 
-const BASE = ''
+const BASE = import.meta.env.VITE_API_URL ?? ''
 
 export interface JoinResult {
   accessToken: string

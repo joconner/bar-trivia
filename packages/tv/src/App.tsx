@@ -5,30 +5,12 @@ import { LobbyView } from './views/LobbyView'
 import { QuestionView } from './views/QuestionView'
 import { RevealView } from './views/RevealView'
 import { FinalView } from './views/FinalView'
+import { getRoomCodeFromUrl } from './url-utils'
 
-// Server URL: same-origin when served by nginx, fallback for local Vite dev.
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? ''
+// Empty string = same-origin. VITE_API_URL overrides for split deployments
+// (e.g. Cloudflare Pages + Railway). VITE_SERVER_URL is the legacy name.
+const SERVER_URL = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_SERVER_URL ?? ''
 const POLL_INTERVAL_MS = 3000
-
-// Extract roomCode from URL path (/MURP or /tv/MURP) or ?roomCode= query param.
-// The 'tv' prefix segment is explicitly skipped so a bare /tv URL falls through
-// to auto-discovery instead of treating "TV" as a room code.
-//
-// Server-generated room codes use [2-9A-Z] minus the confusables O/I/L (see
-// rooms.service.ts generateRoomCode), so the regex must accept digits.
-function getRoomCodeFromUrl(): string | null {
-  const params = new URLSearchParams(window.location.search)
-  const fromQuery = params.get('roomCode')
-  if (fromQuery) return fromQuery.toUpperCase()
-
-  const segments = window.location.pathname.split('/').filter(Boolean)
-  for (let i = segments.length - 1; i >= 0; i--) {
-    if (segments[i].toLowerCase() === 'tv') continue
-    const seg = segments[i].toUpperCase()
-    if (/^[A-Z0-9]{2,8}$/.test(seg)) return seg
-  }
-  return null
-}
 
 interface ActiveRoomsResponse {
   count: number
@@ -130,7 +112,7 @@ function AutoDiscoverApp() {
 }
 
 export default function App() {
-  const fromUrl = getRoomCodeFromUrl()
+  const fromUrl = getRoomCodeFromUrl(window.location.href)
   if (fromUrl) return <TVApp roomCode={fromUrl} />
   return <AutoDiscoverApp />
 }

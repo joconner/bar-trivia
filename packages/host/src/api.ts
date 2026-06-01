@@ -8,10 +8,9 @@ export class SubscriptionRequiredError extends Error {
   }
 }
 
-// Same-origin: nginx proxies /auth, /rooms, /packs, /socket.io to the server.
-// A hardcoded localhost:3000 would break the moment the host opens this PWA on
-// their phone via the bar's LAN IP — the phone has no port 3000 of its own.
-const BASE = ''
+// Paths are relative in same-origin deploys (nginx / Railway all-in-one).
+// Set VITE_API_URL at build time when the frontend is hosted separately.
+const BASE = import.meta.env.VITE_API_URL ?? ''
 const PROACTIVE_LEAD_MS = 90_000
 
 let _token: string | null = null

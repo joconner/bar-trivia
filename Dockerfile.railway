@@ -1,0 +1,78 @@
+# Railway deployment: builds all three React SPAs and packages them with the
+# NestJS server. PostgreSQL is provided by the Railway Postgres plugin —
+# DATABASE_URL is injected automatically into the container environment.
+#
+# The server serves static files from packages/{tv,host,player}/dist/ on the
+# same origin as the API, so no CORS or cross-origin cookie changes are needed.
+#
+# Optional: VITE_API_URL build arg
+#   Set this only if you are deploying the frontends separately (e.g. to
+#   Cloudflare Pages) and need the SPAs to connect to an external API URL.
+#   Leave it unset for the standard single-service Railway deploy.
+#
+# Usage (Railway reads this file via railway.toml):
+#   railway up            # deploy from CLI
+#   railway link && railway open  # open in browser after deploy
+
+FROM node:22-alpine AS base
+WORKDIR /app
+
+# python3/make/g++ for @node-rs/argon2 native build; openssl for Prisma binary
+RUN apk add --no-cache python3 make g++ openssl
+
+# Copy manifests first so npm ci is cached when only source files change.
+# The server prisma schema must be present before npm ci because the server's
+# postinstall hook runs `prisma generate`.
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json   ./packages/shared/
+COPY packages/tv/package.json       ./packages/tv/
+COPY packages/player/package.json   ./packages/player/
+COPY packages/host/package.json     ./packages/host/
+COPY packages/server/package.json   ./packages/server/
+COPY packages/server/prisma         ./packages/server/prisma/
+
+RUN npm ci
+
+COPY tsconfig.base.json ./
+COPY packages/shared/   ./packages/shared/
+COPY packages/tv/       ./packages/tv/
+COPY packages/player/   ./packages/player/
+COPY packages/host/     ./packages/host/
+COPY packages/server/   ./packages/server/
+
+# Build React SPAs in parallel stages.
+# VITE_API_URL is optional. When blank the SPAs use same-origin fetch/websocket
+# (correct for the all-in-one Railway deploy). Set it only when deploying the
+# static files to a separate origin (e.g. Cloudflare Pages).
+FROM base AS tv-build
+ARG VITE_API_URL=
+ENV VITE_API_URL=${VITE_API_URL}
+RUN cd packages/tv && npx vite build
+
+FROM base AS player-build
+ARG VITE_API_URL=
+ENV VITE_API_URL=${VITE_API_URL}
+RUN cd packages/player && npx vite build
+
+FROM base AS host-build
+ARG VITE_API_URL=
+ENV VITE_API_URL=${VITE_API_URL}
+RUN cd packages/host && npx vite build
+
+# Final image: server + built SPAs + PostgreSQL Prisma client
+FROM base AS final
+COPY --from=tv-build     /app/packages/tv/dist     ./packages/tv/dist
+COPY --from=player-build /app/packages/player/dist ./packages/player/dist
+COPY --from=host-build   /app/packages/host/dist   ./packages/host/dist
+
+# Generate PostgreSQL Prisma client (schema.prisma, not the SQLite variant)
+RUN cd packages/server && npx prisma generate
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+
+# prisma migrate deploy applies any pending migrations, then seed loads the
+# bundled question packs (idempotent). Server reads PORT from env (Railway
+# injects it; defaults to 3000 in main.ts).
+ENTRYPOINT ["sh", "-c", "cd /app/packages/server && npx prisma migrate deploy && npx prisma db seed && npx ts-node --transpile-only src/main.ts"]

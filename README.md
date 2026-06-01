@@ -97,6 +97,91 @@ The server reads `.env` from the repo root regardless of cwd (resolved relative 
 - The service spins down after 15 minutes of inactivity. The first request after sleep takes ~30 s to boot.
 - SQLite data is on Render's ephemeral disk — it's wiped on redeploy (not on sleep/wake). For persistent data, create a free [Neon](https://neon.tech) PostgreSQL project, set `DATABASE_URL` to the Neon connection string in Render, and update `render.yaml` to use `schema.prisma` (PostgreSQL) instead of `schema.sqlite.prisma`.
 
+## Deploying to Railway (PostgreSQL, persistent data)
+
+`railway.toml` + `Dockerfile.railway` define a single Web Service that builds all three React clients, runs them alongside the NestJS server on the same Railway domain, and uses Railway's managed PostgreSQL plugin. Data persists across deploys.
+
+**One-time setup (~10 min):**
+
+### 1. Create the Railway project
+
+```bash
+npm install -g @railway/cli
+railway login
+railway init    # creates a new project
+```
+
+Or go to [railway.app](https://railway.app), create a project, and connect the `joconner/bar-trivia` repo via the dashboard.
+
+### 2. Add a PostgreSQL plugin
+
+In the Railway dashboard, open your project and click **New** → **Database** → **PostgreSQL**. Railway adds a `DATABASE_URL` environment variable to your service automatically.
+
+### 3. Set required secrets
+
+In the Railway dashboard → your service → **Variables**, add:
+
+| Variable | Value |
+| --- | --- |
+| `JWT_SECRET` | 32+ random bytes: `openssl rand -hex 32` |
+| `COOKIE_SECRET` | 32+ random bytes: `openssl rand -hex 32` |
+| `NODE_ENV` | `production` |
+
+Optional Stripe billing (hosts get a 14-day trial without it):
+
+| Variable | Value |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | From [Stripe dashboard](https://dashboard.stripe.com/apikeys) |
+| `STRIPE_WEBHOOK_SECRET` | From Stripe webhook endpoint |
+| `STRIPE_MONTHLY_PRICE_ID` | Your monthly price ID |
+
+### 4. Deploy
+
+```bash
+railway up    # from the repo root — Railway reads railway.toml
+```
+
+Or push to the branch linked in the Railway dashboard to trigger an automatic deploy.
+
+**First deploy takes ~5-8 min** (builds three React SPAs, runs `prisma migrate deploy`, seeds question packs, starts the server).
+
+**After deploy**, the app is reachable at your Railway public domain (shown in the dashboard under **Settings** → **Networking** → **Public Domain**):
+
+- TV: `https://<your-app>.railway.app/tv` (or just bare URL — redirects to `/tv`)
+- Host: `https://<your-app>.railway.app/host`
+- Player: `https://<your-app>.railway.app/player`
+
+**Redeploying:** Push to the linked branch or run `railway up` again. Migrations run automatically on startup; the seed is idempotent.
+
+---
+
+### Optional: Cloudflare Pages for static frontends
+
+For lower latency on the React apps (TV/Host/Player), you can serve the static files from Cloudflare Pages and keep only the API server on Railway. This requires two additional steps.
+
+**Step 1 — Configure Railway to allow your Pages origin:**
+
+In Railway variables, add:
+
+```
+ALLOWED_ORIGINS=https://bar-trivia.pages.dev,https://your-custom-domain.com
+```
+
+(Or set `ALLOWED_ORIGINS` to a comma-separated list of all your Cloudflare Pages URLs.)
+
+**Step 2 — Deploy frontends to Cloudflare Pages:**
+
+For each client (tv, host, player), create a Cloudflare Pages project:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm run build --workspace=packages/<client>` |
+| Build output directory | `packages/<client>/dist` |
+| Environment variable | `VITE_API_URL` = your Railway URL (e.g. `https://bar-trivia.railway.app`) |
+| Node.js version | `22` |
+
+> **Note on cookies:** Cross-origin cookie support (for refresh token rotation) requires changing the server's cookie `sameSite` from `lax` to `none`. This is a follow-up step — the all-in-one Railway deployment above has no cross-origin cookie issues and is recommended for demos and initial pilots.
+
 ## Testing
 
 Unit tests run on [Vitest](https://vitest.dev) from the repo root — no database or running server required:

@@ -5,7 +5,7 @@ import { decodeToken } from './jwt'
 // REST 401 retry, the proactive timer, and React StrictMode's double-mount can
 // never rotate the same refresh cookie twice and trip server reuse detection.
 
-const REFRESH_PATH = '/auth/refresh'
+const REFRESH_PATH = `${import.meta.env.VITE_API_URL ?? ''}/auth/refresh`
 const PROACTIVE_LEAD_MS = 90_000
 
 let accessToken: string | null = null

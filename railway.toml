@@ -1,0 +1,12 @@
+[build]
+# Use the Railway-specific Dockerfile that builds all three React SPAs
+# and packages them with the NestJS server (single-service deploy).
+# Railway injects DATABASE_URL automatically when a Postgres plugin is attached.
+dockerfilePath = "Dockerfile.railway"
+
+[deploy]
+healthcheckPath = "/health"
+# Allow enough time for prisma migrate + seed on first deploy
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
