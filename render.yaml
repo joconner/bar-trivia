@@ -32,7 +32,7 @@ services:
     env: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build --workspace=packages/tv --workspace=packages/host --workspace=packages/player && cd packages/server && npx prisma generate --schema=prisma/schema.sqlite.prisma
+    buildCommand: NODE_ENV=development npm ci && npm run build --workspace=packages/tv --workspace=packages/host --workspace=packages/player && cd packages/server && npx prisma generate --schema=prisma/schema.sqlite.prisma
     startCommand: cd packages/server && npx prisma db push --schema=prisma/schema.sqlite.prisma && npx prisma db seed && npx ts-node --transpile-only src/main.ts
     healthCheckPath: /health
     envVars:
