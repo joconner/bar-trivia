@@ -11,12 +11,19 @@
 //   - *.local at arbitrary depth (RFC 6762 mDNS plus tool-generated names
 //     like nginx.bar-trivia.orb.local from OrbStack). Safe because .local is
 //     reserved for link-local resolution — never routable on the public net.
+//   - ALLOWED_ORIGINS env var: comma-separated list of exact origins for
+//     production deployments (e.g. https://bar-trivia.onrender.com).
 
 const ALLOWED_HOST_REGEX =
   /^(localhost|[A-Za-z0-9-]+\.localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+\.local)$/
 
+function extraAllowedOrigins(): string[] {
+  return (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+}
+
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return true
+  if (extraAllowedOrigins().includes(origin)) return true
   try {
     const { hostname } = new URL(origin)
     return ALLOWED_HOST_REGEX.test(hostname)

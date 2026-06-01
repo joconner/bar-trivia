@@ -53,12 +53,12 @@ This starts Postgres, runs `prisma db push && prisma db seed` in the server cont
 
 ### 4. Play a game
 
-1. **Host** — open `/host`, **Register** to create a host account, build a pack + game with a few questions, then create a room. You'll get a 4-character room code.
+1. **Host** — open `/host`, **Register** to create a host account. Your library starts with five shared packs (General Knowledge, History, Science, Pop Culture, Sports) — each is 5 games of 20 questions. Pick one and click **Start Room** on a game to get a 4-character room code. You can also create your own packs alongside the shared ones.
 2. **TV** — open `/tv` and enter the room code, or open `/tv/CODE` directly.
 3. **Players** — scan the TV's QR code or open `/player` and join with the room code. No account required.
 4. Drive the game from the host; TV and players update live over WebSockets.
 
-The seeded "Trivia Host" account has no password (it only exists to own the demo pack), so register your own host account to sign in.
+The shared packs are seeded from the [Open Trivia Database](https://opentdb.com) (licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)) and owned by a synthetic "house" user — every host sees them, but only their own packs are editable. Re-fetch the content with `npx ts-node packages/server/scripts/fetch-seed-content.ts` (rate-limited; takes a few minutes).
 
 ### Outside-Docker workflow (server only)
 
@@ -74,6 +74,28 @@ npm run dev:server
 ```
 
 The server reads `.env` from the repo root regardless of cwd (resolved relative to `main.ts`). An end-to-end smoke test of the whole journey lives at `packages/server/test/golden-path.mjs`: with the server running, `cd packages/server && SERVER_URL=http://localhost:3000 node test/golden-path.mjs`.
+
+## Deploying to Render (free tier)
+
+`render.yaml` at the repo root defines a single free-tier Web Service. The service builds all three React clients and serves them as static files from the NestJS server. No nginx container is needed in this mode.
+
+**Prerequisites:**
+- A free [Neon](https://neon.tech) PostgreSQL project (no credit card required). Copy the connection string after creating the project.
+- A free [Render](https://render.com) account connected to this GitHub repo.
+
+**One-time setup:**
+
+1. In Render, create a new **Web Service**, select this repo, and choose **"Use render.yaml"** — Render reads the build/start commands and env var definitions automatically.
+2. In the Render dashboard for the service, set the **`DATABASE_URL`** environment variable to your Neon connection string (e.g. `postgres://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`). `JWT_SECRET` and `COOKIE_SECRET` are auto-generated.
+3. Hit **Deploy**. The first deploy builds the three React apps and runs `prisma db push && prisma db seed` before starting the server.
+
+**After deploy**, the app is reachable at `https://<service-name>.onrender.com`:
+- TV: `https://<name>.onrender.com/tv`
+- Host: `https://<name>.onrender.com/host`
+- Player: `https://<name>.onrender.com/player`
+- Bare URL redirects to `/tv`.
+
+**Free-tier note:** The service spins down after 15 minutes of inactivity. The first request after sleep triggers a cold start (~30 s, including `prisma db push` + seed) while Render wakes the dyno. This is expected for demos and small playtest sessions.
 
 ## Testing
 
