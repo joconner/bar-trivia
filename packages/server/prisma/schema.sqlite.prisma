@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  guest
+  player
+  host
+  admin
+}
+
+enum RoomStatus {
+  lobby
+  final
+}
+
+enum LateJoinPolicy {
+  open
+  locked
+}
+
+enum PhoneTextMode {
+  heads_up
+  full
+}
+
+model User {
+  id                   String            @id @default(uuid())
+  role                 UserRole
+  displayName          String
+  email                String?           @unique
+  passwordHash         String?
+  createdAt            DateTime          @default(now())
+  lastSeenAt           DateTime          @default(now())
+  // Billing fields — only populated for host accounts
+  stripeCustomerId     String?           @unique
+  subscriptionStatus   String            @default("trial")
+  trialEndsAt          DateTime?
+  refreshTokens        RefreshToken[]
+  participants         RoomParticipant[]
+  hostedRooms          Room[]            @relation("RoomHost")
+  ownedPacks           Pack[]
+
+  @@index([subscriptionStatus])
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  deviceLabel String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  rotatedToId String?   @unique
+
+  @@index([userId])
+}
+
+model Pack {
+  id        String    @id @default(uuid())
+  title     String
+  ownerId   String
+  owner     User      @relation(fields: [ownerId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  games     Game[]
+  rooms     Room[]
+
+  @@index([ownerId])
+}
+
+model Game {
+  id               String     @id @default(uuid())
+  packId           String
+  pack             Pack       @relation(fields: [packId], references: [id], onDelete: Cascade)
+  title            String
+  position         Int
+  lateJoinDefault  LateJoinPolicy @default(open)
+  tiebreakerMethod String         @default("response_time")
+  phoneTextMode    PhoneTextMode  @default(heads_up)
+  createdAt        DateTime   @default(now())
+  questions        Question[]
+
+  @@index([packId])
+}
+
+model Question {
+  id                  String @id @default(uuid())
+  gameId              String
+  game                Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  type                String @default("multiple_choice")
+  prompt              String
+  imageUrl            String?
+  data                Json
+  defaultTimerSeconds Int    @default(30)
+  position            Int
+
+  @@index([gameId])
+}
+
+model Room {
+  id            String            @id @default(uuid())
+  roomCode      String            @unique
+  hostId        String
+  host          User              @relation("RoomHost", fields: [hostId], references: [id])
+  packId        String
+  pack          Pack              @relation(fields: [packId], references: [id])
+  currentGameId String?
+  status        RoomStatus        @default(lobby)
+  createdAt     DateTime          @default(now())
+  endedAt       DateTime?
+  participants  RoomParticipant[]
+  gameResults   GameResult[]
+
+  @@index([hostId])
+}
+
+model RoomParticipant {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id])
+  roomCode    String
+  displayName String
+  joinedAt    DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  @@index([roomId])
+  @@index([userId])
+  @@index([roomCode])
+}
+
+model GameResult {
+  id          String   @id @default(uuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id])
+  gameId      String
+  completedAt DateTime @default(now())
+  results     Json
+}
