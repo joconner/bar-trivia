@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bar Trivia — Run live trivia night at your bar</title>
+  <meta name="description" content="Real-time multiplayer trivia for venues. No app download for players. Works on bar wifi. Run your first trivia night tonight.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0d1b2a;
+      --navy-light: #1a2e45;
+      --gold: #f5a623;
+      --gold-light: #fbbf24;
+      --white: #ffffff;
+      --off-white: #f4f4f0;
+      --text-muted: #94a3b8;
+      --text-body: #cbd5e1;
+      --radius: 10px;
+      --max-w: 680px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(160deg, #0d1b2a 0%, #122136 60%, #0a1624 100%);
+      padding: 48px 24px 56px;
+      text-align: center;
+      border-bottom: 1px solid rgba(245,166,35,0.15);
+    }
+
+    .logo {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 32px;
+    }
+
+    .logo span {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: var(--gold);
+      border-radius: 50%;
+      vertical-align: middle;
+      margin: 0 8px;
+    }
+
+    header h1 {
+      font-size: clamp(26px, 6vw, 42px);
+      font-weight: 800;
+      line-height: 1.2;
+      max-width: var(--max-w);
+      margin: 0 auto 20px;
+      letter-spacing: -0.02em;
+    }
+
+    header h1 em {
+      color: var(--gold);
+      font-style: normal;
+    }
+
+    header p {
+      font-size: 17px;
+      color: var(--text-body);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* ── Section wrapper ── */
+    section {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    /* ── Benefits ── */
+    .benefits {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .benefits h2 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 24px;
+    }
+
+    .benefit-list {
+      list-style: none;
+      display: grid;
+      gap: 16px;
+    }
+
+    .benefit-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: var(--navy-light);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+
+    .benefit-icon {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      background: rgba(245,166,35,0.12);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .benefit-text strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 2px;
+    }
+
+    .benefit-text p {
+      font-size: 14px;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+
+    /* ── Form ── */
+    .form-section {
+      padding-top: 48px;
+      padding-bottom: 64px;
+    }
+
+    .form-card {
+      background: var(--navy-light);
+      border: 1px solid rgba(245,166,35,0.2);
+      border-radius: 16px;
+      padding: 32px 28px;
+    }
+
+    .form-card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .form-card p {
+      font-size: 14px;
+      color: var(--text-body);
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    input[type="text"],
+    input[type="email"] {
+      width: 100%;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: var(--radius);
+      color: var(--white);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]::placeholder,
+    input[type="email"]::placeholder {
+      color: var(--text-muted);
+    }
+
+    input[type="text"]:focus,
+    input[type="email"]:focus {
+      border-color: var(--gold);
+      background: rgba(245,166,35,0.06);
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 15px;
+      background: var(--gold);
+      color: #0d1b2a;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 4px;
+      letter-spacing: 0.01em;
+    }
+
+    .btn-submit:hover { background: var(--gold-light); }
+    .btn-submit:active { transform: scale(0.98); }
+
+    .form-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    /* ── Success state ── */
+    .success-msg {
+      display: none;
+      text-align: center;
+      padding: 24px;
+      color: #86efac;
+      font-size: 16px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 13px;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    @media (min-width: 600px) {
+      .benefit-list { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Bar Trivia <span></span> Early Access</div>
+  <h1>Run live trivia night at your bar — <em>no app download</em> required.</h1>
+  <p>Real-time multiplayer trivia for venues. Players join from any phone, scores appear on the TV, and your host runs the whole show.</p>
+</header>
+
+<section class="benefits">
+  <h2>Why venues love it</h2>
+  <ul class="benefit-list">
+    <li>
+      <div class="benefit-icon">⚡</div>
+      <div class="benefit-text">
+        <strong>Real-time scoring</strong>
+        <p>Leaderboard updates instantly after every question — the bar reacts live.</p>
+      </div>
+    </li>
+    <li>
+      <div class="benefit-icon">📺</div>
+      <div class="benefit-text">
+        <strong>TV + host + player clients</strong>
+        <p>Three screens, one game. Everything stays in sync over your existing wifi.</p>
+      </div>
+    </li>
+    <li>
+      <div class="benefit-icon">📶</div>
+      <div class="benefit-text">
+        <strong>Built for bar wifi</strong>
+        <p>Designed to stay connected on crowded, spotty bar networks — not ideal lab conditions.</p>
+      </div>
+    </li>
+    <li>
+      <div class="benefit-icon">📱</div>
+      <div class="benefit-text">
+        <strong>No app download for players</strong>
+        <p>Guests scan a QR code and play in seconds. No install wall, no friction.</p>
+      </div>
+    </li>
+  </ul>
+</section>
+
+<section class="form-section">
+  <div class="form-card">
+    <h2>Get early access for your venue</h2>
+    <p>Be the first to run trivia night with Bar Trivia. We'll reach out when spots open up.</p>
+
+    <!--
+      SETUP: Replace YOUR_FORM_ID with your Formspree form ID.
+      1. Sign up free at https://formspree.io
+      2. Create a new form
+      3. Copy the form ID from the endpoint URL and paste it below
+    -->
+    <form
+      action="https://formspree.io/f/YOUR_FORM_ID"
+      method="POST"
+      id="signupForm"
+    >
+      <div class="form-group">
+        <input
+          type="text"
+          name="name"
+          placeholder="Your name"
+          required
+          autocomplete="name"
+        >
+        <input
+          type="email"
+          name="email"
+          placeholder="Email address"
+          required
+          autocomplete="email"
+        >
+        <input
+          type="text"
+          name="venue"
+          placeholder="Venue name (optional)"
+          autocomplete="organization"
+        >
+        <button type="submit" class="btn-submit">Get Early Access →</button>
+      </div>
+    </form>
+    <div class="success-msg" id="successMsg">
+      You're on the list! We'll be in touch soon.
+    </div>
+    <p class="form-note">No spam. Just an early access invite when we're ready.</p>
+  </div>
+</section>
+
+<footer>
+  &copy; 2026 Bar Trivia. All rights reserved.
+</footer>
+
+<script>
+  const form = document.getElementById('signupForm');
+  const msg  = document.getElementById('successMsg');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const btn  = form.querySelector('button[type="submit"]');
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        body: data,
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        form.style.display = 'none';
+        msg.style.display  = 'block';
+      } else {
+        btn.textContent = 'Try again';
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = 'Try again';
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
