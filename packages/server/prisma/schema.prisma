@@ -14,6 +14,21 @@ enum UserRole {
   admin
 }
 
+enum RoomStatus {
+  lobby
+  final
+}
+
+enum LateJoinPolicy {
+  open
+  locked
+}
+
+enum PhoneTextMode {
+  heads_up
+  full
+}
+
 model User {
   id           String            @id @default(uuid())
   role         UserRole
@@ -44,14 +59,17 @@ model RefreshToken {
 }
 
 model Pack {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   title     String
   ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  owner     User      @relation(fields: [ownerId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
   games     Game[]
   rooms     Room[]
+
+  @@index([ownerId])
 }
 
 model Game {
@@ -60,9 +78,9 @@ model Game {
   pack             Pack       @relation(fields: [packId], references: [id], onDelete: Cascade)
   title            String
   position         Int
-  lateJoinDefault  String     @default("open")
-  tiebreakerMethod String     @default("response_time")
-  phoneTextMode    String     @default("heads_up")
+  lateJoinDefault  LateJoinPolicy @default(open)
+  tiebreakerMethod String         @default("response_time")
+  phoneTextMode    PhoneTextMode  @default(heads_up)
   createdAt        DateTime   @default(now())
   questions        Question[]
 
@@ -91,7 +109,7 @@ model Room {
   packId        String
   pack          Pack              @relation(fields: [packId], references: [id])
   currentGameId String?
-  status        String            @default("lobby")
+  status        RoomStatus        @default(lobby)
   createdAt     DateTime          @default(now())
   endedAt       DateTime?
   participants  RoomParticipant[]

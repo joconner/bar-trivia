@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common'
+import { LateJoinPolicy, PhoneTextMode } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { MultipleChoiceData } from '@bar-trivia/shared'
 
@@ -24,7 +25,7 @@ export class PacksService {
 
   listPacks(ownerId: string) {
     return this.prisma.pack.findMany({
-      where: { ownerId },
+      where: { ownerId, deletedAt: null },
       include: PACK_INCLUDE,
       orderBy: { createdAt: 'asc' },
     })
@@ -42,7 +43,7 @@ export class PacksService {
       where: { id: packId },
       include: PACK_INCLUDE,
     })
-    if (!pack) throw new NotFoundException('Pack not found')
+    if (!pack || pack.deletedAt !== null) throw new NotFoundException('Pack not found')
     this.checkOwner(pack.ownerId, ownerId)
     return pack
   }
@@ -58,7 +59,14 @@ export class PacksService {
 
   async deletePack(packId: string, ownerId: string) {
     await this.requirePackOwner(packId, ownerId)
-    await this.prisma.pack.delete({ where: { id: packId } })
+    // Soft-delete: a pack referenced by any historical Room can't be hard-deleted
+    // (no cascade from Pack to Room), and even unused packs represent real
+    // host-authored content. Setting deletedAt hides it from listPacks/getPack
+    // while preserving the row and all its games/questions for possible undelete.
+    await this.prisma.pack.update({
+      where: { id: packId },
+      data: { deletedAt: new Date() },
+    })
   }
 
   async addGame(
@@ -66,9 +74,9 @@ export class PacksService {
     ownerId: string,
     body: {
       title: string
-      lateJoinDefault?: string
+      lateJoinDefault?: LateJoinPolicy
       tiebreakerMethod?: string
-      phoneTextMode?: string
+      phoneTextMode?: PhoneTextMode
     },
   ) {
     await this.requirePackOwner(packId, ownerId)
@@ -92,9 +100,9 @@ export class PacksService {
     ownerId: string,
     body: Partial<{
       title: string
-      lateJoinDefault: string
+      lateJoinDefault: LateJoinPolicy
       tiebreakerMethod: string
-      phoneTextMode: string
+      phoneTextMode: PhoneTextMode
     }>,
   ) {
     await this.requirePackOwner(packId, ownerId)
@@ -217,9 +225,9 @@ export class PacksService {
   private async requirePackOwner(packId: string, ownerId: string) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: packId },
-      select: { ownerId: true },
+      select: { ownerId: true, deletedAt: true },
     })
-    if (!pack) throw new NotFoundException('Pack not found')
+    if (!pack || pack.deletedAt !== null) throw new NotFoundException('Pack not found')
     this.checkOwner(pack.ownerId, ownerId)
   }
 

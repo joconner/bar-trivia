@@ -22,9 +22,11 @@ describe('createPack / listPacks', () => {
     )
   })
 
-  it('lists only the callers packs', () => {
+  it('lists only the callers non-deleted packs', () => {
     service.listPacks(OWNER)
-    expect(prisma.pack.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: OWNER } }))
+    expect(prisma.pack.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ownerId: OWNER, deletedAt: null } }),
+    )
   })
 })
 
@@ -35,18 +37,18 @@ describe('ownership enforcement', () => {
   })
 
   it('getPack throws Forbidden when another user owns the pack', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'someone-else' })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'someone-else', deletedAt: null })
     await expect(service.getPack('p1', OWNER)).rejects.toBeInstanceOf(ForbiddenException)
   })
 
   it('getPack returns the pack for its owner', async () => {
-    const pack = { id: 'p1', ownerId: OWNER }
+    const pack = { id: 'p1', ownerId: OWNER, deletedAt: null }
     prisma.pack.findUnique.mockResolvedValue(pack)
     await expect(service.getPack('p1', OWNER)).resolves.toBe(pack)
   })
 
   it('updatePack refuses a non-owner', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'other' })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: 'other', deletedAt: null })
     await expect(service.updatePack('p1', OWNER, 'New')).rejects.toBeInstanceOf(ForbiddenException)
     expect(prisma.pack.update).not.toHaveBeenCalled()
   })
@@ -57,9 +59,36 @@ describe('ownership enforcement', () => {
   })
 })
 
+describe('soft-delete', () => {
+  it('deletePack sets deletedAt instead of removing the row', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
+
+    await service.deletePack('p1', OWNER)
+
+    expect(prisma.pack.delete).not.toHaveBeenCalled()
+    expect(prisma.pack.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'p1' },
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      }),
+    )
+  })
+
+  it('getPack treats a soft-deleted pack as not found', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ id: 'p1', ownerId: OWNER, deletedAt: new Date() })
+    await expect(service.getPack('p1', OWNER)).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('requirePackOwner blocks mutations on a soft-deleted pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: new Date() })
+    await expect(service.updatePack('p1', OWNER, 'New')).rejects.toBeInstanceOf(NotFoundException)
+    expect(prisma.pack.update).not.toHaveBeenCalled()
+  })
+})
+
 describe('addGame', () => {
   it('appends the game at the next position with sensible defaults', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.count.mockResolvedValue(2)
     prisma.game.create.mockResolvedValue({ id: 'g' })
 
@@ -80,7 +109,7 @@ describe('addGame', () => {
   })
 
   it('honors explicitly supplied game options', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.count.mockResolvedValue(0)
     prisma.game.create.mockResolvedValue({ id: 'g' })
 
@@ -96,13 +125,13 @@ describe('addGame', () => {
 
 describe('game/question containment checks', () => {
   it('updateGame throws NotFound when the game is not in the pack', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'a-different-pack' })
     await expect(service.updateGame('p1', 'g1', OWNER, { title: 'x' })).rejects.toBeInstanceOf(NotFoundException)
   })
 
   it('updateQuestion throws NotFound when the question is not in the game', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.question.findUnique.mockResolvedValue({ gameId: 'a-different-game' })
     await expect(service.updateQuestion('p1', 'g1', 'q1', OWNER, { prompt: 'x' })).rejects.toBeInstanceOf(
@@ -113,7 +142,7 @@ describe('game/question containment checks', () => {
 
 describe('addQuestion', () => {
   it('appends at the next position with multiple_choice defaults', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.question.count.mockResolvedValue(3)
     prisma.question.create.mockResolvedValue({ id: 'q' })
@@ -137,7 +166,7 @@ describe('addQuestion', () => {
 
 describe('update/delete happy paths', () => {
   it('updateGame writes the patch once ownership and containment pass', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.game.update.mockResolvedValue({ id: 'g1' })
 
@@ -149,7 +178,7 @@ describe('update/delete happy paths', () => {
   })
 
   it('deleteGame deletes once checks pass', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.game.delete.mockResolvedValue({})
 
@@ -158,7 +187,7 @@ describe('update/delete happy paths', () => {
   })
 
   it('updateQuestion serializes question data when present', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.question.findUnique.mockResolvedValue({ gameId: 'g1' })
     prisma.question.update.mockResolvedValue({})
@@ -172,7 +201,7 @@ describe('update/delete happy paths', () => {
   })
 
   it('updateQuestion omits the data key when no data is supplied', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.question.findUnique.mockResolvedValue({ gameId: 'g1' })
     prisma.question.update.mockResolvedValue({})
@@ -185,7 +214,7 @@ describe('update/delete happy paths', () => {
   })
 
   it('deleteQuestion deletes once checks pass', async () => {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
     prisma.question.findUnique.mockResolvedValue({ gameId: 'g1' })
     prisma.question.delete.mockResolvedValue({})
@@ -197,7 +226,7 @@ describe('update/delete happy paths', () => {
 
 describe('reorderQuestions', () => {
   function passOwnershipAndGame() {
-    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER })
+    prisma.pack.findUnique.mockResolvedValue({ ownerId: OWNER, deletedAt: null })
     prisma.game.findUnique.mockResolvedValue({ packId: 'p1' })
   }
 

@@ -62,8 +62,8 @@ export class RoomsService {
     const gameConfig: GameConfig = {
       gameId: game.id,
       gameTitle: game.title,
-      lateJoinPolicy: game.lateJoinDefault as 'open' | 'locked',
-      phoneTextMode: game.phoneTextMode as 'heads_up' | 'full',
+      lateJoinPolicy: game.lateJoinDefault,
+      phoneTextMode: game.phoneTextMode,
       questions: game.questions.map((q) => ({
         id: q.id,
         prompt: q.prompt,
@@ -282,8 +282,8 @@ export class RoomsService {
     state.gameConfig = {
       gameId: game.id,
       gameTitle: game.title,
-      lateJoinPolicy: game.lateJoinDefault as 'open' | 'locked',
-      phoneTextMode: game.phoneTextMode as 'heads_up' | 'full',
+      lateJoinPolicy: game.lateJoinDefault,
+      phoneTextMode: game.phoneTextMode,
       questions: game.questions.map((q) => ({
         id: q.id,
         prompt: q.prompt,
