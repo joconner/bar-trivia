@@ -294,17 +294,14 @@
     <h2>Get early access for your venue</h2>
     <p>Be the first to run trivia night with Bar Trivia. We'll reach out when spots open up.</p>
 
-    <!--
-      SETUP: Replace YOUR_FORM_ID with your Formspree form ID.
-      1. Sign up free at https://formspree.io
-      2. Create a new form
-      3. Copy the form ID from the endpoint URL and paste it below
-    -->
     <form
-      action="https://formspree.io/f/YOUR_FORM_ID"
+      action="https://formsubmit.co/ajax/joconner@connectpoint.com"
       method="POST"
       id="signupForm"
     >
+      <input type="hidden" name="_subject" value="Bar Trivia - New Early Access Signup">
+      <input type="hidden" name="_captcha" value="false">
+      <input type="hidden" name="_template" value="table">
       <div class="form-group">
         <input
           type="text"
