@@ -1,0 +1,55 @@
+# Development override: bind-mounts the local repo so server code changes are
+# visible without rebuilding the image. Run with:
+#
+#   docker compose -f docker-compose.dev.yml up
+#
+# Then start whichever Vite clients you need on the host:
+#
+#   npm run dev:tv      # http://localhost:5173
+#   npm run dev:player  # http://localhost:5174
+#   npm run dev:host    # http://localhost:5175
+#
+# Nginx is omitted — clients talk directly to the server on :3000.
+# To restart the server after a code change:
+#
+#   docker compose -f docker-compose.dev.yml restart server
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    volumes:
+      # Bind-mount the full repo so live source changes reach the container.
+      - .:/app
+      # Shadow node_modules with anonymous volumes so the container's Linux
+      # binaries (argon2, Prisma) are not overwritten by the host's Mac builds.
+      - /app/node_modules
+      - /app/packages/server/node_modules
+      - /app/packages/shared/node_modules
+
+volumes:
+  postgres_data:
