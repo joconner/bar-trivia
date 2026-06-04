@@ -50,6 +50,19 @@ describe('AuthService.register', () => {
     expect(payload.role).toBe('host')
     expect(typeof result.refreshToken).toBe('string')
   })
+
+  it('sets subscriptionStatus to trial with a future trialEndsAt on registration', async () => {
+    prisma.user.findUnique.mockResolvedValue(null)
+    prisma.user.create.mockResolvedValue({ id: 'u1', displayName: 'H', role: 'host' })
+    prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' })
+
+    await service.register({ email: 'a@b.com', password: 'password1', displayName: 'H' })
+
+    const createCall = prisma.user.create.mock.calls[0][0]
+    expect(createCall.data.subscriptionStatus).toBe('trial')
+    expect(createCall.data.trialEndsAt).toBeInstanceOf(Date)
+    expect(createCall.data.trialEndsAt.getTime()).toBeGreaterThan(Date.now())
+  })
 })
 
 describe('AuthService.login', () => {

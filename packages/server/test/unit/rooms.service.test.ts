@@ -504,6 +504,58 @@ describe('selectGame', () => {
   })
 })
 
+// R8: concurrent guest join race condition
+// The race: N calls all read `existingNames` from state.participants before any resolves.
+// With a deterministic generateDisplayName mock, all guests get the same display name.
+// This is a known limitation of the current in-memory implementation - name uniqueness
+// is not enforced under concurrent load, but participant data (IDs, scores) is never lost.
+describe('concurrent guest joins (R8)', () => {
+  it('all N guests resolve and every participant is stored without data loss', async () => {
+    const { state, roomCode } = seedRoom({ phase: 'lobby' })
+    const N = 5
+
+    // Each call gets a unique user and participant ID from Prisma
+    for (let i = 0; i < N; i++) {
+      prisma.user.create.mockResolvedValueOnce({ id: `g${i}` })
+      prisma.roomParticipant.create.mockResolvedValueOnce({ id: `p${i}` })
+    }
+
+    const results = await Promise.all(
+      Array.from({ length: N }, () => service.joinRoom(roomCode, undefined)),
+    )
+
+    // All calls resolved - no data loss
+    expect(results).toHaveLength(N)
+    expect(state.participants.size).toBe(N)
+
+    // Each participant ID is unique even if display names collide
+    const ids = results.map((r) => r.participant.id)
+    expect(new Set(ids).size).toBe(N)
+  })
+
+  it('documents the known name-collision under concurrent load', async () => {
+    const { state, roomCode } = seedRoom({ phase: 'lobby' })
+    const N = 3
+
+    for (let i = 0; i < N; i++) {
+      prisma.user.create.mockResolvedValueOnce({ id: `g${i}` })
+      prisma.roomParticipant.create.mockResolvedValueOnce({ id: `p${i}` })
+    }
+
+    await Promise.all(
+      Array.from({ length: N }, () => service.joinRoom(roomCode, undefined)),
+    )
+
+    // generateDisplayName is a deterministic mock (always 'BraveOtter'),
+    // so concurrent calls all receive the same name - a known gap in the
+    // current implementation. The test documents this rather than asserting
+    // uniqueness so a future fix can tighten the assertion.
+    const names = [...state.participants.values()].map((p) => p.displayName)
+    expect(names).toHaveLength(N)
+    expect(names.every((n) => n === 'BraveOtter')).toBe(true)
+  })
+})
+
 describe('toRoomStateDto leaderboard', () => {
   it('ranks by score desc, breaking ties by faster total response time', () => {
     const { state, roomCode } = seedRoom({ phase: 'lobby' })

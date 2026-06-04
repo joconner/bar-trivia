@@ -12,6 +12,7 @@ export default defineConfig({
       'packages/server/test/unit/**/*.test.ts',
       'packages/host/test/**/*.test.ts',
       'packages/player/test/**/*.test.ts',
+      'packages/tv/test/**/*.test.{ts,tsx}',
     ],
     coverage: {
       provider: 'v8',

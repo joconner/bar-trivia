@@ -106,7 +106,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const token = getAccessToken()
       if (token && !isTokenExpired(token)) return
       const fresh = await refreshAccessToken()
-      if (!fresh) resetToJoin('Your session expired. Please rejoin.')
+      if (fresh) {
+        sock.disconnect()
+        sock.connect()
+      } else {
+        resetToJoin('Your session expired. Please rejoin.')
+      }
     })
 
     socketRef.current = sock

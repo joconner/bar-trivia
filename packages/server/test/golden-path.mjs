@@ -97,10 +97,17 @@ function connectSocket({ token, roomCode, role } = {}) {
   const queryOpts = {}
   if (roomCode) queryOpts.roomCode = roomCode
 
+  // Allow TRANSPORTS env var for cloud deployments where WebSocket upgrade may
+  // be blocked at the proxy level (e.g. AWS App Runner blocks WS upgrades).
+  // Default to websocket-only for local/Docker testing to catch regressions.
+  const transports = process.env.TRANSPORTS
+    ? process.env.TRANSPORTS.split(',').map((t) => t.trim())
+    : ['websocket']
+
   const socket = io(BASE, {
     auth: authOpts,
     query: queryOpts,
-    transports: ['websocket'],
+    transports,
     reconnection: false,
     // Node.js socket.io-client doesn't send Origin by default;
     // the server CORS rejects connectionless origins even with allow-all config.
