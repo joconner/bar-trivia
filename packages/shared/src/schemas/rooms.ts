@@ -46,6 +46,7 @@ export const RoomStateDtoSchema = z.object({
   phase: GamePhaseSchema,
   packTitle: z.string(),
   gameTitle: z.string(),
+  venueName: z.string().optional(),
   totalQuestions: z.number().int(),
   currentQuestionIndex: z.number().int().nullable(),
   lateJoinPolicy: z.enum(['open', 'locked']),

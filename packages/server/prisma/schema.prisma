@@ -115,6 +115,7 @@ model Room {
   packId        String
   pack          Pack              @relation(fields: [packId], references: [id])
   currentGameId String?
+  venueName     String?
   status        RoomStatus        @default(lobby)
   createdAt     DateTime          @default(now())
   endedAt       DateTime?

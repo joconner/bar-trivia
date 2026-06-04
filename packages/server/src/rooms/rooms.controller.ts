@@ -25,6 +25,7 @@ import { AccessTokenPayload, SubmitAnswerRequestSchema } from '@bar-trivia/share
 const CreateRoomSchema = z.object({
   packId: z.string().min(1),
   gameId: z.string().min(1),
+  venueName: z.string().max(100).optional(),
 })
 class CreateRoomDto extends createZodDto(CreateRoomSchema) {}
 

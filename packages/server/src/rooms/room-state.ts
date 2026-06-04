@@ -38,6 +38,7 @@ export class RoomState {
   hostId: string
   packId: string
   packTitle: string
+  venueName?: string
   phase: 'lobby' | 'question' | 'reveal' | 'final' = 'lobby'
   currentGameIndex: number = 0
   currentQuestionIndex: number = -1
@@ -60,6 +61,7 @@ export class RoomState {
     hostId: string
     packId: string
     packTitle: string
+    venueName?: string
     gameConfig: GameConfig
   }) {
     this.roomId = init.roomId
@@ -67,6 +69,7 @@ export class RoomState {
     this.hostId = init.hostId
     this.packId = init.packId
     this.packTitle = init.packTitle
+    this.venueName = init.venueName
     this.gameConfig = init.gameConfig
   }
 

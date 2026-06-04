@@ -14,6 +14,7 @@ import * as express from 'express'
 import { NestFactory } from '@nestjs/core'
 import { ZodValidationPipe } from 'nestjs-zod'
 import cookieParser from 'cookie-parser'
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston'
 import { AppModule } from './app.module'
 import { isAllowedOrigin } from './cors-allowlist'
 import { loadEnv } from './config/env.schema'
@@ -24,6 +25,9 @@ async function bootstrap() {
   // rawBody: true preserves the raw request buffer so Stripe webhook signature
   // verification can run on the exact bytes that were signed.
   const app = await NestFactory.create(AppModule, { rawBody: true })
+
+  // Route all NestJS Logger calls through the Winston logger configured in LoggerModule.
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER))
 
   app.use(cookieParser())
 

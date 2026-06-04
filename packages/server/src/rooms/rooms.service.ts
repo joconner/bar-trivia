@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -23,6 +24,7 @@ import {
 
 @Injectable()
 export class RoomsService {
+  private readonly logger = new Logger(RoomsService.name)
   private gateway: { broadcastRoomState(roomCode: string, state: RoomStateDto): void } | null = null
 
   constructor(
@@ -36,7 +38,7 @@ export class RoomsService {
     this.gateway = gw
   }
 
-  async createRoom(hostId: string, body: { packId: string; gameId: string }) {
+  async createRoom(hostId: string, body: { packId: string; gameId: string; venueName?: string }) {
     const pack = await this.prisma.pack.findUnique({
       where: { id: body.packId },
       include: {
@@ -61,8 +63,10 @@ export class RoomsService {
 
     const roomCode = await this.generateUniqueRoomCode()
 
+    const venueName = body.venueName ?? undefined
+
     const room = await this.prisma.room.create({
-      data: { roomCode, hostId, packId: body.packId, currentGameId: game.id, status: 'lobby' },
+      data: { roomCode, hostId, packId: body.packId, currentGameId: game.id, status: 'lobby', venueName },
     })
 
     const gameConfig: GameConfig = {
@@ -80,8 +84,9 @@ export class RoomsService {
       })),
     }
 
-    const state = new RoomState({ roomId: room.id, roomCode, hostId, packId: body.packId, packTitle: pack.title, gameConfig })
+    const state = new RoomState({ roomId: room.id, roomCode, hostId, packId: body.packId, packTitle: pack.title, venueName, gameConfig })
     this.store.set(roomCode, state)
+    this.logger.log({ event: 'room.created', roomCode, hostId, packId: body.packId, venueName, ts: new Date().toISOString() })
 
     // The TV builds the player join URL from its own window.location.origin —
     // the server doesn't know which hostname (LAN IP, mDNS, etc.) the TV was
@@ -182,6 +187,7 @@ export class RoomsService {
         isConnected: true,
       }
       state.participants.set(participant.id, participantState)
+      this.logger.log({ event: 'player.joined', roomCode, participantId: participant.id, displayName, userId: user.id, ts: new Date().toISOString() })
 
       this.broadcast(roomCode)
       return { accessToken, refreshToken, participant: { id: participant.id, displayName } }
@@ -213,6 +219,7 @@ export class RoomsService {
       isConnected: true,
     }
     state.participants.set(participant.id, participantState)
+    this.logger.log({ event: 'player.joined', roomCode, participantId: participant.id, displayName, userId: guestUser.id, ts: new Date().toISOString() })
 
     this.broadcast(roomCode)
     return { accessToken, refreshToken, participant: { id: participant.id, displayName } }
@@ -262,6 +269,8 @@ export class RoomsService {
 
     const q = state.gameConfig.questions[0]
     state.startTimer(q.defaultTimerSeconds * 1000, () => this.handleTimerExpiry(roomCode))
+    this.logger.log({ event: 'game.started', roomCode, gameId: state.gameConfig.gameId, ts: new Date().toISOString() })
+    this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'question', questionIndex: 0, ts: new Date().toISOString() })
 
     this.broadcast(roomCode)
     return this.toRoomStateDto(state)
@@ -337,6 +346,8 @@ export class RoomsService {
       state.clearTimer()
       this.scoreQuestion(state)
       state.phase = 'reveal'
+      this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'reveal', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+      this.logger.log({ event: 'game.advanced', roomCode, questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
       this.broadcast(roomCode)
       return this.toRoomStateDto(state)
     }
@@ -351,6 +362,8 @@ export class RoomsService {
         state.phase = 'question'
         const q = state.gameConfig.questions[state.currentQuestionIndex]
         state.startTimer(q.defaultTimerSeconds * 1000, () => this.handleTimerExpiry(roomCode))
+        this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'question', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+        this.logger.log({ event: 'game.advanced', roomCode, questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
       }
       this.broadcast(roomCode)
       return this.toRoomStateDto(state)
@@ -401,6 +414,7 @@ export class RoomsService {
     const record: AnswerRecord = { choiceId: body.choiceId, submittedAt: new Date(), responseTimeMs }
     questionAnswers.set(user.roomParticipantId, record)
     state.answers.set(q.id, questionAnswers)
+    this.logger.log({ event: 'player.answered', roomCode, participantId: user.roomParticipantId, questionId: q.id, responseTimeMs, ts: new Date().toISOString() })
 
     return { questionId: q.id, choiceId: body.choiceId, responseTimeMs }
   }
@@ -456,6 +470,9 @@ export class RoomsService {
     await this.prisma.room.update({ where: { id: state.roomId }, data: { status: 'final', endedAt: new Date() } })
     state.phase = 'final'
     state.clearTimer()
+    this.logger.log({ event: 'game.ended', roomCode: state.roomCode, gameId: state.gameConfig.gameId, playerCount: state.participants.size, ts: new Date().toISOString() })
+    this.logger.log({ event: 'room.phase_changed', roomCode: state.roomCode, phase: 'final', ts: new Date().toISOString() })
+    this.logger.log({ event: 'room.ended', roomCode: state.roomCode, ts: new Date().toISOString() })
   }
 
   private buildLeaderboard(state: RoomState): LeaderboardEntry[] {
@@ -526,6 +543,7 @@ export class RoomsService {
       phase: state.phase,
       packTitle: state.packTitle,
       gameTitle: state.gameConfig.gameTitle,
+      venueName: state.venueName,
       totalQuestions: state.gameConfig.questions.length,
       currentQuestionIndex: state.currentQuestionIndex >= 0 ? state.currentQuestionIndex : null,
       lateJoinPolicy: state.gameConfig.lateJoinPolicy,

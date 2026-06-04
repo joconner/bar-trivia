@@ -76,11 +76,14 @@ function AutoDiscoverApp() {
     return <TVApp roomCode={discovered.roomCode} />
   }
 
-  if (discovered && discovered.count > 1) {
+  if (discovered !== null) {
+    const prompt = discovered.count === 0
+      ? 'No active rooms yet. Enter a room code to connect:'
+      : `Multiple active rooms (${discovered.count}). Enter the room code to pair this TV:`
     return (
       <div className="waiting-screen">
         <h1>Bar Trivia TV</h1>
-        <p>Multiple active rooms ({discovered.count}). Enter the room code to pair this TV:</p>
+        <p>{prompt}</p>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -106,7 +109,7 @@ function AutoDiscoverApp() {
   return (
     <div className="waiting-screen">
       <h1>Bar Trivia TV</h1>
-      <p>Waiting for host to create a room…</p>
+      <p>Connecting…</p>
     </div>
   )
 }

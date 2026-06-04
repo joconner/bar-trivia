@@ -123,6 +123,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     if (participant) {
       participant.isConnected = false
       participant.socketId = null
+      this.logger.log({ event: 'player.disconnected', roomCode, participantId: roomParticipantId, ts: new Date().toISOString() })
     }
 
     this.logger.log(`Socket ${socket.id} disconnected from room ${roomCode}`)

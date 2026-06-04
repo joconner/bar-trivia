@@ -6,9 +6,10 @@ import { UsersModule } from './users/users.module'
 import { PacksModule } from './packs/packs.module'
 import { RoomsModule } from './rooms/rooms.module'
 import { SubscriptionsModule } from './subscriptions/subscriptions.module'
+import { LoggerModule } from './logger/logger.module'
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, PacksModule, RoomsModule, SubscriptionsModule],
+  imports: [LoggerModule, PrismaModule, AuthModule, UsersModule, PacksModule, RoomsModule, SubscriptionsModule],
   controllers: [HealthController],
   providers: [],
 })

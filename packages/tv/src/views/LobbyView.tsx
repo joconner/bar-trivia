@@ -1,19 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react'
 import type { RoomStateDto } from '@bar-trivia/shared'
-
-// Player lives at /player on the same origin nginx serves the TV from, so the
-// QR uses window.location's origin verbatim. No port, no env var — whatever
-// hostname the bar TV typed works for phones on the same Wi-Fi.
-//
-// Loopback and dev-only *.localhost hostnames are the cases where this breaks
-// silently: phones can't reach the TV's loopback, and *.localhost only resolves
-// on machines with the matching /etc/hosts entry. Detect both and show a
-// warning instead of a useless QR, so the operator catches the problem before
-// customers do.
-const NON_ROUTABLE_LITERALS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', ''])
-function isNonRoutable(hostname: string): boolean {
-  return NON_ROUTABLE_LITERALS.has(hostname) || hostname.endsWith('.localhost')
-}
+import { isNonRoutable } from '../url-utils'
 
 interface LobbyViewProps {
   state: RoomStateDto
@@ -28,6 +15,7 @@ export function LobbyView({ state }: LobbyViewProps) {
     <div className="lobby-view">
       <h1 className="game-title">{state.gameTitle}</h1>
       <p className="pack-title">{state.packTitle}</p>
+      {state.venueName && <p className="venue-name">{state.venueName}</p>}
 
       <div className="lobby-main">
         <div className="join-section">
