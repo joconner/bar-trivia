@@ -448,8 +448,10 @@ export class RoomsService {
     for (const [participantId, answer] of questionAnswers) {
       const p = state.participants.get(participantId)
       if (!p) continue
-      if (answer.choiceId === q.data.correctChoiceId) p.score += 1
-      p.totalResponseTimeMs += answer.responseTimeMs
+      if (answer.choiceId === q.data.correctChoiceId) {
+        p.score += 1
+        p.totalResponseTimeMs += answer.responseTimeMs
+      }
     }
   }
 

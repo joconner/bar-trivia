@@ -190,7 +190,7 @@ describe('advance: scoring on question -> reveal', () => {
     expect(state.participants.get(p1)!.score).toBe(1)
     expect(state.participants.get(p1)!.totalResponseTimeMs).toBe(1000)
     expect(state.participants.get(p2)!.score).toBe(0)
-    expect(state.participants.get(p2)!.totalResponseTimeMs).toBe(2000)
+    expect(state.participants.get(p2)!.totalResponseTimeMs).toBe(0)
   })
 
   it('reveal DTO exposes the correct choice and an answer breakdown', async () => {
