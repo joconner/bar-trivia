@@ -284,6 +284,101 @@ describe('advance: phase progression', () => {
   })
 })
 
+describe('updateRoomSettings (auto-advance)', () => {
+  it('defaults autoAdvance to false in the DTO', () => {
+    const { roomCode } = seedRoom()
+    expect(service.getRoomStateDto(roomCode).autoAdvance).toBe(false)
+  })
+
+  it('rejects toggling from a non-host', () => {
+    const { roomCode } = seedRoom()
+    expect(() => service.updateRoomSettings(roomCode, 'not-host', { autoAdvance: true })).toThrow(
+      ForbiddenException,
+    )
+  })
+
+  it('toggles autoAdvance and exposes it on the DTO', () => {
+    const { state, hostId, roomCode } = seedRoom()
+    const dto = service.updateRoomSettings(roomCode, hostId, { autoAdvance: true })
+    expect(state.autoAdvance).toBe(true)
+    expect(dto.autoAdvance).toBe(true)
+  })
+
+  it('starts a 5s reveal timer when entering reveal with autoAdvance on', async () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0), makeQuestion(1)] })
+    state.autoAdvance = true
+    state.phase = 'question'
+    state.currentQuestionIndex = 0
+
+    await service.advance(roomCode, hostId)
+
+    expect(state.phase).toBe('reveal')
+    expect(state.timer.endsAt?.getTime()).toBe(Date.now() + 5_000)
+
+    // After the countdown fires, server should auto-advance to the next question.
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(state.phase).toBe('question')
+    expect(state.currentQuestionIndex).toBe(1)
+  })
+
+  it('does not start a reveal timer on the last question even with autoAdvance on', async () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0)] })
+    state.autoAdvance = true
+    state.phase = 'question'
+    state.currentQuestionIndex = 0
+
+    await service.advance(roomCode, hostId)
+
+    expect(state.phase).toBe('reveal')
+    expect(state.timer.endsAt).toBeNull()
+  })
+
+  it('starts the countdown when host toggles autoAdvance on during reveal', () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0), makeQuestion(1)] })
+    state.phase = 'reveal'
+    state.currentQuestionIndex = 0
+
+    service.updateRoomSettings(roomCode, hostId, { autoAdvance: true })
+
+    expect(state.timer.endsAt?.getTime()).toBe(Date.now() + 5_000)
+  })
+
+  it('cancels the countdown when host toggles autoAdvance off during reveal', () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0), makeQuestion(1)] })
+    state.autoAdvance = true
+    state.phase = 'reveal'
+    state.currentQuestionIndex = 0
+    state.startTimer(5_000, () => undefined)
+
+    service.updateRoomSettings(roomCode, hostId, { autoAdvance: false })
+
+    expect(state.timer.endsAt).toBeNull()
+    expect(state.timer.timeoutRef).toBeNull()
+  })
+
+  it('exposes the reveal countdown via currentQuestion.timerEndsAt during reveal', async () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0), makeQuestion(1)] })
+    state.autoAdvance = true
+    state.phase = 'question'
+    state.currentQuestionIndex = 0
+
+    const dto = await service.advance(roomCode, hostId)
+    expect(dto.phase).toBe('reveal')
+    expect(dto.currentQuestion?.timerEndsAt).toBe(new Date(Date.now() + 5_000).toISOString())
+  })
+
+  it('starts the reveal countdown when the question timer expires with autoAdvance on', () => {
+    const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0, 10), makeQuestion(1)] })
+    state.autoAdvance = true
+    service.startGame(roomCode, hostId)
+
+    vi.advanceTimersByTime(10_000)
+
+    expect(state.phase).toBe('reveal')
+    expect(state.timer.endsAt?.getTime()).toBe(Date.now() + 5_000)
+  })
+})
+
 describe('pauseGame', () => {
   it('pauses then resumes the running timer on successive calls', () => {
     const { state, hostId, roomCode } = seedRoom({ phase: 'question' })
