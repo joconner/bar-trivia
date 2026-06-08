@@ -84,6 +84,38 @@ describe('room lookup and host authorization', () => {
   })
 })
 
+describe('getHostRooms', () => {
+  it('returns only rooms hosted by the given user, with packTitle/playerCount/phase', () => {
+    const a = seedRoom()
+    addParticipant(a.state)
+    addParticipant(a.state)
+    const otherHost = randomUUID()
+    const otherState = new RoomState({
+      roomId: randomUUID(),
+      roomCode: 'OTHR',
+      hostId: otherHost,
+      packId: randomUUID(),
+      packTitle: 'Other Pack',
+      gameConfig: makeGameConfig([makeQuestion(0)]),
+    })
+    store.set('OTHR', otherState)
+
+    const mine = service.getHostRooms(a.hostId)
+    expect(mine).toEqual([
+      { roomCode: a.roomCode, packId: a.state.packId, packTitle: 'Pack', playerCount: 2, phase: 'lobby' },
+    ])
+
+    const theirs = service.getHostRooms(otherHost)
+    expect(theirs).toEqual([
+      { roomCode: 'OTHR', packId: otherState.packId, packTitle: 'Other Pack', playerCount: 0, phase: 'lobby' },
+    ])
+  })
+
+  it('returns an empty array when the host has no live rooms', () => {
+    expect(service.getHostRooms(randomUUID())).toEqual([])
+  })
+})
+
 describe('startGame', () => {
   it('moves from lobby to the first question and starts the timer', () => {
     const { state, hostId, roomCode } = seedRoom({ questions: [makeQuestion(0, 20)] })

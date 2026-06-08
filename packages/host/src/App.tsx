@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { RoomStateDto } from '@bar-trivia/shared'
-import { setToken, getToken, refreshAccessToken } from './api'
+import { setToken, getToken, refreshAccessToken, type HostRoomSummary } from './api'
 import { decodeToken, isTokenExpired } from './jwt'
 import { connectRoom, disconnectRoom } from './socket'
 import Login from './views/Login'
@@ -105,6 +105,17 @@ export default function App() {
           onOpenPack={(packId) => navigate({ id: 'pack-detail', packId })}
           onLogout={handleLogout}
           onSubscribeRequired={() => navigate({ id: 'subscribe' })}
+          onResumeRoom={(room: HostRoomSummary) => {
+            // Map the room's current phase onto the host's screen state so
+            // resume lands you on the same view you accidentally left.
+            const target =
+              room.phase === 'lobby'
+                ? { id: 'lobby' as const, roomCode: room.roomCode, packId: room.packId }
+                : room.phase === 'final'
+                  ? { id: 'final' as const, roomCode: room.roomCode, packId: room.packId }
+                  : { id: 'in-game' as const, roomCode: room.roomCode, packId: room.packId }
+            navigate(target)
+          }}
         />
       )
 

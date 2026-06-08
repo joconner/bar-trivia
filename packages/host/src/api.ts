@@ -200,6 +200,18 @@ export function createPortalSession(returnUrl: string) {
 
 // --- Rooms ---
 
+export interface HostRoomSummary {
+  roomCode: string
+  packId: string
+  packTitle: string
+  playerCount: number
+  phase: 'lobby' | 'question' | 'reveal' | 'final'
+}
+
+export function listMyRooms() {
+  return req<HostRoomSummary[]>('GET', '/rooms/my-rooms')
+}
+
 export function createRoom(packId: string, gameId: string) {
   return req<{ roomCode: string }>('POST', '/rooms', { packId, gameId })
 }

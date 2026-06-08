@@ -107,6 +107,32 @@ export class RoomsService {
     return { count: codes.length, roomCode: codes.length === 1 ? codes[0] : null }
   }
 
+  // Returns the live in-memory rooms hosted by the given user. Used by the host
+  // dashboard to offer a "resume" path when the host navigated away from an
+  // active room. Only rooms still in the in-memory store are surfaced — once a
+  // room ends it disappears from this list.
+  getHostRooms(hostId: string): Array<{
+    roomCode: string
+    packId: string
+    packTitle: string
+    playerCount: number
+    phase: RoomState['phase']
+  }> {
+    const rooms: Array<{ roomCode: string; packId: string; packTitle: string; playerCount: number; phase: RoomState['phase'] }> = []
+    for (const code of this.store.codes()) {
+      const state = this.store.get(code)
+      if (!state || state.hostId !== hostId) continue
+      rooms.push({
+        roomCode: state.roomCode,
+        packId: state.packId,
+        packTitle: state.packTitle,
+        playerCount: state.participants.size,
+        phase: state.phase,
+      })
+    }
+    return rooms
+  }
+
   updateLobbyConfig(
     roomCode: string,
     hostId: string,
