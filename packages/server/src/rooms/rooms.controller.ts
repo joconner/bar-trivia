@@ -71,6 +71,15 @@ export class RoomsController {
     return this.rooms.getActiveRooms()
   }
 
+  // Lists the authenticated host's live in-memory rooms so the host dashboard
+  // can offer a "resume" path. Declared before :roomCode for the same routing
+  // reason as /rooms/active.
+  @Get('my-rooms')
+  @Roles('host')
+  getMyRooms(@CurrentUser() user: AccessTokenPayload) {
+    return this.rooms.getHostRooms(user.sub)
+  }
+
   @Get(':roomCode')
   @Public()
   getRoom(@Param('roomCode') roomCode: string) {

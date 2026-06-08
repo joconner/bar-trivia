@@ -1,6 +1,15 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { HOUSE_USER_ID, type Pack } from '@bar-trivia/shared'
-import { listPacks, createPack, logout, getSubscriptionStatus, createPortalSession } from '../api'
+import {
+  listPacks,
+  createPack,
+  logout,
+  getSubscriptionStatus,
+  createPortalSession,
+  listMyRooms,
+  getRoom,
+  type HostRoomSummary,
+} from '../api'
 
 interface SubscriptionBannerProps {
   status: string
@@ -63,9 +72,10 @@ interface Props {
   onOpenPack: (packId: string) => void
   onLogout: () => void
   onSubscribeRequired: () => void
+  onResumeRoom: (room: HostRoomSummary) => void
 }
 
-export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired }: Props) {
+export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired, onResumeRoom }: Props) {
   const [packs, setPacks] = useState<Pack[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -76,6 +86,8 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
   const [subStatus, setSubStatus] = useState<{ status: string; trialEndsAt: string | null } | null>(null)
   const [justSubscribed, setJustSubscribed] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [activeRooms, setActiveRooms] = useState<HostRoomSummary[]>([])
+  const [resumeError, setResumeError] = useState('')
 
   useEffect(() => {
     // Detect Stripe checkout success return and clean the URL
@@ -92,6 +104,12 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
 
     getSubscriptionStatus()
       .then((s) => setSubStatus({ status: s.status, trialEndsAt: s.trialEndsAt }))
+      .catch(() => {})
+
+    // Show a "resume active game" path for any in-memory room this host owns.
+    // Failures are silent — the rest of the dashboard still works without it.
+    listMyRooms()
+      .then(setActiveRooms)
       .catch(() => {})
   }, [])
 
@@ -116,6 +134,21 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
   async function handleLogout() {
     await logout().catch(() => {})
     onLogout()
+  }
+
+  async function handleResume(room: HostRoomSummary) {
+    setResumeError('')
+    try {
+      // Verify the room is still live before navigating. The /rooms/my-rooms
+      // result can go stale if the room ended (server emptied the store)
+      // between the dashboard load and the click.
+      await getRoom(room.roomCode)
+      onResumeRoom(room)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not resume game'
+      setResumeError(`Could not resume ${room.roomCode}: ${msg}. It may have ended.`)
+      setActiveRooms((prev) => prev.filter((r) => r.roomCode !== room.roomCode))
+    }
   }
 
   async function handleManageBilling() {
@@ -185,6 +218,46 @@ export default function PackLibrary({ onOpenPack, onLogout, onSubscribeRequired 
       {error && <p className="error-msg">{error}</p>}
 
       <div className="screen-body">
+        {resumeError && (
+          <p className="error-msg" style={{ marginBottom: '0.5rem' }}>{resumeError}</p>
+        )}
+        {activeRooms.length > 0 && (
+          <div style={{ marginBottom: '0.75rem' }}>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--text-dim)',
+                marginBottom: '0.4rem',
+              }}
+            >
+              Active games
+            </div>
+            {activeRooms.map((room) => (
+              <div
+                key={room.roomCode}
+                className="card card-clickable"
+                onClick={() => handleResume(room)}
+                style={{ borderLeft: '3px solid var(--success, #4ade80)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                      Resume {room.roomCode}
+                    </div>
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                      {room.packTitle} · {room.playerCount} {room.playerCount === 1 ? 'player' : 'players'} · {room.phase}
+                    </div>
+                  </div>
+                  <span style={{ color: 'var(--text-dim)', fontSize: '1.2rem' }}>›</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {!loading && packs.length === 0 && (
           <div className="empty-state">
             <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📦</p>

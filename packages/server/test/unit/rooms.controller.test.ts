@@ -25,6 +25,7 @@ beforeEach(() => {
   rooms = {
     createRoom: vi.fn().mockResolvedValue(STUB_STATE),
     getActiveRooms: vi.fn().mockReturnValue({ count: 1, roomCode: 'ABCD' }),
+    getHostRooms: vi.fn().mockReturnValue([]),
     getRoomStateDto: vi.fn().mockReturnValue(STUB_STATE),
     updateLobbyConfig: vi.fn().mockReturnValue(STUB_STATE),
     joinRoom: vi.fn(),
@@ -54,6 +55,19 @@ describe('GET /rooms/active', () => {
   it('returns the active room summary', () => {
     const result = controller.getActive()
     expect(result).toEqual({ count: 1, roomCode: 'ABCD' })
+  })
+})
+
+describe('GET /rooms/my-rooms', () => {
+  it('delegates to rooms.getHostRooms with the authenticated user id', () => {
+    const user = makeUser('host')
+    const list = [{ roomCode: 'ABCD', packId: 'p1', packTitle: 'Pack', playerCount: 3, phase: 'question' }]
+    rooms.getHostRooms.mockReturnValue(list)
+
+    const result = controller.getMyRooms(user)
+
+    expect(rooms.getHostRooms).toHaveBeenCalledWith(user.sub)
+    expect(result).toBe(list)
   })
 })
 
