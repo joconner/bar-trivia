@@ -43,6 +43,7 @@ export class RoomState {
   currentGameIndex: number = 0
   currentQuestionIndex: number = -1
   questionStartedAt: Date | null = null
+  autoAdvance: boolean = false
   gameConfig: GameConfig
   timer: {
     endsAt: Date | null

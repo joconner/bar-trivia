@@ -114,6 +114,7 @@ describe('RoomStateDtoSchema', () => {
       currentQuestionIndex: null,
       lateJoinPolicy: 'open',
       phoneTextMode: 'heads_up',
+      autoAdvance: false,
       players: [],
       leaderboard: [],
       currentQuestion: null,

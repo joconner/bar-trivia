@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { RoomStateDto } from '@bar-trivia/shared'
-import { pauseGame, advanceGame, kickPlayer } from '../api'
+import { pauseGame, advanceGame, kickPlayer, updateRoomSettings } from '../api'
 
 const LETTERS = ['A', 'B', 'C', 'D']
 
@@ -40,10 +40,11 @@ function useTimer(state: RoomStateDto | null): { remaining: number; paused: bool
 
 export default function InGame({ roomCode, roomState, onDone }: Props) {
   const [error, setError] = useState('')
-  const [acting, setActing] = useState<'pause' | 'advance' | null>(null)
+  const [acting, setActing] = useState<'pause' | 'advance' | 'autoAdvance' | null>(null)
   const [showRoster, setShowRoster] = useState(false)
   const prevPhase = useRef(roomState?.phase)
   const { remaining, paused } = useTimer(roomState)
+  const autoAdvance = roomState?.autoAdvance ?? false
 
   useEffect(() => {
     if (roomState?.phase === 'final' && prevPhase.current !== 'final') {
@@ -71,6 +72,18 @@ export default function InGame({ roomCode, roomState, onDone }: Props) {
       await advanceGame(roomCode)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to advance')
+    } finally {
+      setActing(null)
+    }
+  }
+
+  async function handleToggleAutoAdvance() {
+    setActing('autoAdvance')
+    setError('')
+    try {
+      await updateRoomSettings(roomCode, { autoAdvance: !autoAdvance })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update settings')
     } finally {
       setActing(null)
     }
@@ -213,6 +226,32 @@ export default function InGame({ roomCode, roomState, onDone }: Props) {
 
       {!showRoster && (
         <div className="bottom-actions">
+          <div
+            className="action-row"
+            style={{ justifyContent: 'space-between', marginBottom: '0.5rem' }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                color: 'var(--text-dim)',
+                cursor: acting !== null ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={autoAdvance}
+                disabled={acting !== null}
+                onChange={handleToggleAutoAdvance}
+              />
+              <span>
+                Auto-advance
+                {isReveal && autoAdvance && remaining > 0 ? ` · next in ${remaining}s` : ''}
+              </span>
+            </label>
+          </div>
           <div className="action-row">
             <button
               className="btn-secondary"
