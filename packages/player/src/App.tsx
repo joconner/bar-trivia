@@ -5,9 +5,15 @@ import { QuestionPage } from './pages/QuestionPage'
 import { RevealPage } from './pages/RevealPage'
 import { FinalPage } from './pages/FinalPage'
 
-// Extract room code from paths like /join/ROOMCODE or /join
-function getRoomCodeFromPath(): string | undefined {
-  const m = window.location.pathname.match(/^\/join\/([A-Z0-9]+)$/i)
+// Extract room code from paths like /join/ROOMCODE, accounting for Vite base path
+// (e.g. /player/join/ROOMCODE in prod where the app is served under /player/).
+export function getRoomCodeFromPath(
+  pathname: string = window.location.pathname,
+  baseUrl: string = import.meta.env.BASE_URL,
+): string | undefined {
+  const base = baseUrl.replace(/\/+$/, '')
+  const stripped = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname
+  const m = stripped.match(/^\/join\/([A-Z0-9]+)\/?$/i)
   return m ? m[1].toUpperCase() : undefined
 }
 
