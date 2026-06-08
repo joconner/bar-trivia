@@ -38,6 +38,11 @@ class UpdateLobbyDto extends createZodDto(UpdateLobbySchema) {}
 const SelectGameSchema = z.object({ gameId: z.string().min(1) })
 class SelectGameDto extends createZodDto(SelectGameSchema) {}
 
+const UpdateSettingsSchema = z.object({
+  autoAdvance: z.boolean().optional(),
+})
+class UpdateSettingsDto extends createZodDto(UpdateSettingsSchema) {}
+
 const KickSchema = z.object({ participantId: z.string().uuid() })
 class KickDto extends createZodDto(KickSchema) {}
 
@@ -94,6 +99,18 @@ export class RoomsController {
     @CurrentUser() user: AccessTokenPayload,
   ) {
     return this.rooms.updateLobbyConfig(roomCode, user.sub, body)
+  }
+
+  // Mid-game settings the host can toggle at any phase (e.g. auto-advance).
+  // Distinct from PATCH /rooms/:roomCode which only mutates lobby config.
+  @Patch(':roomCode/settings')
+  @Roles('host')
+  updateSettings(
+    @Param('roomCode') roomCode: string,
+    @Body() body: UpdateSettingsDto,
+    @CurrentUser() user: AccessTokenPayload,
+  ) {
+    return this.rooms.updateRoomSettings(roomCode, user.sub, body)
   }
 
   @Post(':roomCode/join')

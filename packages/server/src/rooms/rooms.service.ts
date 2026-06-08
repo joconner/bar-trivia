@@ -22,6 +22,11 @@ import {
   HOUSE_USER_ID,
 } from '@bar-trivia/shared'
 
+// How long the reveal screen stays up before auto-advancing to the next
+// question when the host has enabled auto-advance. Fixed for now; could be
+// made configurable per room or per pack later.
+const REVEAL_AUTO_ADVANCE_MS = 5_000
+
 @Injectable()
 export class RoomsService {
   private readonly logger = new Logger(RoomsService.name)
@@ -369,33 +374,48 @@ export class RoomsService {
     this.requireHost(state, hostId)
 
     if (state.phase === 'question') {
-      state.clearTimer()
-      this.scoreQuestion(state)
-      state.phase = 'reveal'
-      this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'reveal', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+      this.enterRevealPhase(state, roomCode)
       this.logger.log({ event: 'game.advanced', roomCode, questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
       this.broadcast(roomCode)
       return this.toRoomStateDto(state)
     }
 
     if (state.phase === 'reveal') {
-      const isLast = state.currentQuestionIndex >= state.gameConfig.questions.length - 1
-      if (isLast) {
-        await this.finalizeGame(state)
-      } else {
-        state.currentQuestionIndex++
-        state.questionStartedAt = new Date()
-        state.phase = 'question'
-        const q = state.gameConfig.questions[state.currentQuestionIndex]
-        state.startTimer(q.defaultTimerSeconds * 1000, () => this.handleTimerExpiry(roomCode))
-        this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'question', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
-        this.logger.log({ event: 'game.advanced', roomCode, questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
-      }
+      await this.advanceFromReveal(state, roomCode)
       this.broadcast(roomCode)
       return this.toRoomStateDto(state)
     }
 
     throw new BadRequestException(`Cannot advance from '${state.phase}' phase`)
+  }
+
+  updateRoomSettings(
+    roomCode: string,
+    hostId: string,
+    settings: { autoAdvance?: boolean },
+  ): RoomStateDto {
+    const state = this.requireRoom(roomCode)
+    this.requireHost(state, hostId)
+
+    if (settings.autoAdvance !== undefined && settings.autoAdvance !== state.autoAdvance) {
+      state.autoAdvance = settings.autoAdvance
+      this.logger.log({ event: 'room.settings_changed', roomCode, autoAdvance: state.autoAdvance, ts: new Date().toISOString() })
+
+      // If we're mid-reveal, start or cancel the reveal countdown to match the
+      // new mode immediately. Without this, toggling on during reveal would
+      // only take effect on the next reveal.
+      if (state.phase === 'reveal') {
+        const isLast = state.currentQuestionIndex >= state.gameConfig.questions.length - 1
+        if (state.autoAdvance && !isLast) {
+          this.startRevealAutoAdvanceTimer(state, roomCode)
+        } else if (!state.autoAdvance) {
+          state.clearTimer()
+        }
+      }
+    }
+
+    this.broadcast(roomCode)
+    return this.toRoomStateDto(state)
   }
 
   async kick(roomCode: string, hostId: string, participantId: string): Promise<RoomStateDto> {
@@ -462,8 +482,49 @@ export class RoomsService {
     if (!state || state.phase !== 'question') return
     state.timer.timeoutRef = null
     state.timer.endsAt = null
+    this.enterRevealPhase(state, roomCode)
+    this.broadcast(roomCode)
+  }
+
+  private enterRevealPhase(state: RoomState, roomCode: string): void {
+    state.clearTimer()
     this.scoreQuestion(state)
     state.phase = 'reveal'
+    this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'reveal', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+
+    const isLast = state.currentQuestionIndex >= state.gameConfig.questions.length - 1
+    if (state.autoAdvance && !isLast) {
+      this.startRevealAutoAdvanceTimer(state, roomCode)
+    }
+  }
+
+  private async advanceFromReveal(state: RoomState, roomCode: string): Promise<void> {
+    const isLast = state.currentQuestionIndex >= state.gameConfig.questions.length - 1
+    if (isLast) {
+      await this.finalizeGame(state)
+      return
+    }
+    state.currentQuestionIndex++
+    state.questionStartedAt = new Date()
+    state.phase = 'question'
+    const q = state.gameConfig.questions[state.currentQuestionIndex]
+    state.startTimer(q.defaultTimerSeconds * 1000, () => this.handleTimerExpiry(roomCode))
+    this.logger.log({ event: 'room.phase_changed', roomCode, phase: 'question', questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+    this.logger.log({ event: 'game.advanced', roomCode, questionIndex: state.currentQuestionIndex, ts: new Date().toISOString() })
+  }
+
+  private startRevealAutoAdvanceTimer(state: RoomState, roomCode: string): void {
+    state.startTimer(REVEAL_AUTO_ADVANCE_MS, () => {
+      void this.handleRevealAutoAdvance(roomCode)
+    })
+  }
+
+  private async handleRevealAutoAdvance(roomCode: string): Promise<void> {
+    const state = this.store.get(roomCode)
+    if (!state || state.phase !== 'reveal' || !state.autoAdvance) return
+    state.timer.timeoutRef = null
+    state.timer.endsAt = null
+    await this.advanceFromReveal(state, roomCode)
     this.broadcast(roomCode)
   }
 
@@ -557,7 +618,8 @@ export class RoomsService {
         imageUrl: q.imageUrl,
         choices: q.data.choices,
         correctChoiceId: q.data.correctChoiceId,
-        timerEndsAt: null,
+        // During reveal, a non-null timerEndsAt is the auto-advance countdown.
+        timerEndsAt: state.autoAdvance && state.timer.endsAt ? state.timer.endsAt.toISOString() : null,
         isPaused: false,
         pausedRemainingMs: null,
         answerBreakdown: this.buildAnswerBreakdown(state, q.id),
@@ -576,6 +638,7 @@ export class RoomsService {
       currentQuestionIndex: state.currentQuestionIndex >= 0 ? state.currentQuestionIndex : null,
       lateJoinPolicy: state.gameConfig.lateJoinPolicy,
       phoneTextMode: state.gameConfig.phoneTextMode,
+      autoAdvance: state.autoAdvance,
       players,
       leaderboard,
       currentQuestion,

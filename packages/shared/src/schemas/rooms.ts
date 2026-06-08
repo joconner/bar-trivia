@@ -51,6 +51,7 @@ export const RoomStateDtoSchema = z.object({
   currentQuestionIndex: z.number().int().nullable(),
   lateJoinPolicy: z.enum(['open', 'locked']),
   phoneTextMode: z.enum(['heads_up', 'full']),
+  autoAdvance: z.boolean(),
   players: z.array(PlayerSummarySchema),
   leaderboard: z.array(LeaderboardEntrySchema),
   currentQuestion: CurrentQuestionSchema.nullable(),

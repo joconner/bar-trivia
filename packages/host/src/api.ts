@@ -224,6 +224,10 @@ export function updateRoomConfig(roomCode: string, config: { lateJoinPolicy?: 'o
   return req<RoomStateDto>('PATCH', `/rooms/${roomCode}`, config)
 }
 
+export function updateRoomSettings(roomCode: string, settings: { autoAdvance?: boolean }) {
+  return req<RoomStateDto>('PATCH', `/rooms/${roomCode}/settings`, settings)
+}
+
 export function startGame(roomCode: string) {
   return req<void>('POST', `/rooms/${roomCode}/game/start`)
 }
