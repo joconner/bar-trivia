@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getToken, setToken, refreshAccessToken, listPacks, login } from '../../src/api'
+import { getToken, setToken, refreshAccessToken, listPacks, login, listMyRooms } from '../../src/api'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
@@ -112,6 +112,59 @@ describe('req — 401 retry on regular endpoints', () => {
     await expect(listPacks()).rejects.toThrow()
     // original + refresh + retry = 3 calls, no fourth call
     expect(mockFetch).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('listMyRooms', () => {
+  it('resolves with the room list on a happy-path GET /rooms/my-rooms', async () => {
+    const rooms = [
+      { roomCode: 'ABCD', packId: 'pack-1', packTitle: 'Pack One', playerCount: 3, phase: 'lobby' },
+      { roomCode: 'EFGH', packId: 'pack-2', packTitle: 'Pack Two', playerCount: 0, phase: 'question' },
+    ]
+    mockFetch.mockResolvedValueOnce(makeResponse(rooms))
+
+    const result = await listMyRooms()
+
+    expect(result).toEqual(rooms)
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toContain('/rooms/my-rooms')
+    expect((init as RequestInit).method).toBe('GET')
+  })
+
+  it('attaches the Authorization header when a token is set', async () => {
+    setToken('host-tok')
+    mockFetch.mockResolvedValueOnce(makeResponse([]))
+
+    await listMyRooms()
+
+    const [, init] = mockFetch.mock.calls[0]
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer host-tok',
+    })
+  })
+
+  it('refreshes and retries once on a 401', async () => {
+    setToken('old-tok')
+    mockFetch
+      .mockResolvedValueOnce(makeResponse({}, 401))
+      .mockResolvedValueOnce(makeResponse({ accessToken: 'new-tok' }))
+      .mockResolvedValueOnce(makeResponse([]))
+
+    const result = await listMyRooms()
+
+    expect(result).toEqual([])
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    const [retryUrl, retryInit] = mockFetch.mock.calls[2]
+    expect(retryUrl).toContain('/rooms/my-rooms')
+    expect((retryInit as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer new-tok',
+    })
+  })
+
+  it('rejects when the network call fails', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('offline'))
+
+    await expect(listMyRooms()).rejects.toThrow('offline')
   })
 })
 
