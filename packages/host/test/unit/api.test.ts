@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getToken, setToken, refreshAccessToken, listPacks, login, listMyRooms } from '../../src/api'
+import { getToken, setToken, refreshAccessToken, listPacks, login, listMyRooms, updateRoomSettings } from '../../src/api'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
@@ -165,6 +165,49 @@ describe('listMyRooms', () => {
     mockFetch.mockRejectedValueOnce(new Error('offline'))
 
     await expect(listMyRooms()).rejects.toThrow('offline')
+  })
+})
+
+describe('updateRoomSettings', () => {
+  it('sends PATCH /rooms/:roomCode/settings with the correct URL and body', async () => {
+    const stateDto = { roomCode: 'ABCD', phase: 'lobby' }
+    mockFetch.mockResolvedValueOnce(makeResponse(stateDto))
+
+    const result = await updateRoomSettings('ABCD', { autoAdvance: true })
+
+    expect(result).toEqual(stateDto)
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toContain('/rooms/ABCD/settings')
+    expect((init as RequestInit).method).toBe('PATCH')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ autoAdvance: true })
+  })
+
+  it('attaches the Authorization header when a token is set', async () => {
+    setToken('host-tok')
+    mockFetch.mockResolvedValueOnce(makeResponse({ roomCode: 'ABCD', phase: 'lobby' }))
+
+    await updateRoomSettings('ABCD', { autoAdvance: true })
+
+    const [, init] = mockFetch.mock.calls[0]
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer host-tok',
+    })
+  })
+
+  it('sends { autoAdvance: false } correctly', async () => {
+    mockFetch.mockResolvedValueOnce(makeResponse({ roomCode: 'ABCD', phase: 'lobby' }))
+
+    await updateRoomSettings('ABCD', { autoAdvance: false })
+
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toContain('/rooms/ABCD/settings')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ autoAdvance: false })
+  })
+
+  it('rejects when the network call fails', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('offline'))
+
+    await expect(updateRoomSettings('ABCD', { autoAdvance: true })).rejects.toThrow('offline')
   })
 })
 
